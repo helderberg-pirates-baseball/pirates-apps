@@ -120,7 +120,7 @@ $albums = array_filter(glob('uploads/*'), 'is_dir');
       ?>
       <div class="album">
         <a href="?album=<?php echo urlencode($album); ?>">
-          <img src="<?php echo $thumb; ?>" onerror="this.src='uploads/default.jpg'">
+          <img src="<?php echo htmlspecialchars($thumb); ?>" onerror="this.src='uploads/default.jpg'">
           <?php echo htmlspecialchars($album); ?>
         </a>
       </div>
@@ -134,7 +134,7 @@ $albums = array_filter(glob('uploads/*'), 'is_dir');
     <a href="gallery.php">← Back to albums</a>
     <div class="gallery">
       <?php foreach ($images as $i => $img): ?>
-        <img src="<?php echo $img; ?>" data-index="<?php echo $i; ?>">
+        <img src="<?php echo htmlspecialchars($img); ?>" data-index="<?php echo $i; ?>">
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
