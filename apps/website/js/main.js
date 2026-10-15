@@ -28,8 +28,10 @@
       $(".back-to-top").fadeOut("slow");
     }
   });
+  // Starts moving straight away and speeds up. "easeInOutExpo" barely moved for
+  // the first few hundred milliseconds, which felt like a delay
   $(".back-to-top").click(function () {
-    $("html, body").animate({ scrollTop: 0 }, 1500, "easeInOutExpo");
+    $("html, body").animate({ scrollTop: 0 }, 800, "easeInQuad");
     return false;
   });
 
