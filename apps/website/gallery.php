@@ -76,12 +76,12 @@ $albums = array_filter(glob('uploads/*'), 'is_dir');
                     </button>
                     <div class="collapse navbar-collapse justify-content-between" id="navbarCollapse">
                         <div class="navbar-nav mr-auto py-0">
-                            <a href="index.php" class="nav-item nav-link active">Home</a>
+                            <a href="index.php" class="nav-item nav-link">Home</a>
                             <a href="about.html" class="nav-item nav-link">About</a>
 							<!--<a href="shop.html" class="nav-item nav-link">Shop</a>-->
                             <a href="schedule.php" class="nav-item nav-link">Schedule</a>
                             <a href="fixtures.php" class="nav-item nav-link">Fixtures</a>
-							<a href="gallery.php" class="nav-item nav-link">Gallery</a>
+							<a href="gallery.php" class="nav-item nav-link active">Gallery</a>
                             <a href="contact.html" class="nav-item nav-link">Contact</a>
                             <a href="https://forms.gle/N7LtqnF7r7RMRC8r5" class="nav-item nav-link" target="_blank">Book the Clubhouse<i class="bi bi-arrow-up-right external-icon" aria-hidden="true"></i><span class="visually-hidden"> (opens in a new tab)</span></a>
                             <a href="https://forms.gle/ru51iYuxmogGMkm86" class="nav-item nav-link" target="_blank">Become a Pirate<i class="bi bi-arrow-up-right external-icon" aria-hidden="true"></i><span class="visually-hidden"> (opens in a new tab)</span></a>
