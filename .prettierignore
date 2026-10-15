@@ -14,5 +14,5 @@ apps/website/scss/
 # Gallery photos and captions are managed on the server; deploys never upload them
 apps/website/uploads/
 
-# Maintained outside this repo and copied in unchanged; see apps/website/fixtures.php
+# Maintained outside this repo and copied in unchanged; see apps/website/fixtures-frame.php
 apps/website/fixtures/

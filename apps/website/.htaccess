@@ -9,8 +9,8 @@
   </FilesMatch>
 </IfModule>
 
-# The fixtures page moved from fixtures.html to fixtures.php (which adds our
-# back link to the schedule file we're sent); keep old links and bookmarks working
+# The fixtures page moved from fixtures.html to fixtures.php (which shows the
+# schedule file we're sent below the site's menu); keep old links and bookmarks working
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^fixtures\.html$ fixtures.php [R=301,L]
