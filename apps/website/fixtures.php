@@ -32,7 +32,7 @@
 
 
 
-<body class="fixtures-page">
+<body>
 
     <!-- Header Start -->
     <div class="container-fluid bg-dark px-0 site-header">
@@ -77,10 +77,42 @@
     <main class="site-main">
         <!-- The fixtures come from outside this repo; see fixtures-frame.php -->
         <iframe src="fixtures-frame.php" class="fixtures-frame" title="2026&ndash;27 match fixtures"></iframe>
+        <script>
+            // The frame is made as tall as the fixtures inside it, so the whole
+            // page scrolls like the other pages and the header scrolls away
+            const frame = document.querySelector(".fixtures-frame");
+            frame.addEventListener("load", function () {
+                const fixtures = frame.contentDocument.documentElement;
+                // Their page makes itself exactly as tall as the frame; let it
+                // be as tall as its content instead, so it can be measured
+                fixtures.style.height = "auto";
+                frame.contentDocument.body.style.height = "auto";
+
+                function fitToFixtures() {
+                    frame.style.height = Math.ceil(fixtures.getBoundingClientRect().height) + "px";
+                }
+                // Switching tabs or filtering changes the height
+                new ResizeObserver(fitToFixtures).observe(fixtures);
+                fitToFixtures();
+            });
+        </script>
     </main>
 
-    <!-- Bootstrap opens and closes the menu on small screens -->
+
+    <!-- Back to Top -->
+    <a href="#" class="btn btn-dark py-3 fs-4 back-to-top"><i class="bi bi-arrow-up"></i></a>
+
+
+    <!-- JavaScript Libraries -->
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="lib/easing/easing.min.js"></script>
+    <script src="lib/waypoints/waypoints.min.js"></script>
+    <script src="lib/counterup/counterup.min.js"></script>
+    <script src="lib/owlcarousel/owl.carousel.min.js"></script>
+
+    <!-- Template Javascript -->
+    <script src="js/main.js"></script>
 
 </body>
 

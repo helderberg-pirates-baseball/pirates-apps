@@ -36,22 +36,13 @@ body {
   flex-grow: 1;
 }
 
-/* The fixtures page is exactly one screen tall, so the menu stays in view, and the
-   fixtures frame fills whatever the header leaves. The frame scrolls on its own */
-.fixtures-page {
-  height: 100vh;
-  height: 100dvh;
-}
-
-.fixtures-page .site-main {
-  display: flex;
-  min-height: 0;
-}
-
+/* fixtures.php makes the frame as tall as the fixtures inside it, so the page scrolls
+   like the others. Until then (or without JavaScript) it fills the screen and scrolls
+   on its own */
 .fixtures-frame {
   display: block;
-  flex-grow: 1;
   width: 100%;
+  height: 100vh;
   border: 0;
 }
 
