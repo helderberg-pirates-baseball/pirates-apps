@@ -28,10 +28,11 @@
       $(".back-to-top").fadeOut("slow");
     }
   });
-  // Starts moving straight away and speeds up. "easeInOutExpo" barely moved for
-  // the first few hundred milliseconds, which felt like a delay
+  // The browser's own smooth scroll starts on the next frame. A jQuery animation
+  // lagged here: Bootstrap turns on CSS smooth scrolling, so each step of the
+  // animation became a new smooth scroll that the next step cut short
   $(".back-to-top").click(function () {
-    $("html, body").animate({ scrollTop: 0 }, 800, "easeInQuad");
+    window.scrollTo({ top: 0, behavior: "smooth" });
     return false;
   });
 
