@@ -56,13 +56,16 @@ const received = amountReceived(
 const overpaid = amountOverpaid(received, total);
 
 // The treasurer's list links here with ?kind=refund to pay back a damage
-// deposit, and ?kind=overpaid to pay back an overpayment
+// deposit, ?kind=overpaid to pay back an overpayment, and ?kind=cancelled to
+// settle a cancelled booking
 const kindParam = Astro.url.searchParams.get("kind");
 let chosenKind: PaymentKind = "Payment";
 if (kindParam === "refund") {
   chosenKind = "Damage deposit refund";
 } else if (kindParam === "overpaid" && overpaid > 0) {
   chosenKind = "Overpayment refund";
+} else if (kindParam === "cancelled") {
+  chosenKind = "Refund";
 }
 const damageRefundHint =
   deposit > 0
@@ -153,7 +156,8 @@ const amountHint =
         <span>
           {PAYMENT_KIND_LABELS.Refund}
           <small>
-            After a cancellation. The payment status becomes Refunded.
+            After a cancellation: whatever you pay back, or R0 to keep it
+            all. The payment status becomes Refunded, which settles it.
           </small>
         </span>
       </label>

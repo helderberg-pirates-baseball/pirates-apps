@@ -13,6 +13,9 @@ import {
   invoiceValues,
   linesFromForm,
   newInvoiceDetails,
+  chooseInvoiceNumber,
+  formValuesFor,
+  formValuesFromSubmission,
   nextInvoiceNumber,
   parseAmount,
   parseInvoicesTab,
@@ -106,6 +109,91 @@ describe("nextInvoiceNumber", () => {
     expect(nextInvoiceNumber(tab.invoices, "2026-10-14")).toBe(
       "INV-20261014-001"
     );
+  });
+});
+
+describe("chooseInvoiceNumber", () => {
+  const SUGGESTED = "INV-20261013-003";
+  // The invoices' numbers, and one typed in by hand on another booking
+  const TAKEN = [
+    ...tab.invoices.map((invoice) => invoice.number),
+    "INV-TEST-002",
+  ];
+
+  it("uses the unchanged number when the suggestion is left as it is", () => {
+    // Someone else may have taken the suggestion since the form opened
+    expect(
+      chooseInvoiceNumber(TAKEN, SUGGESTED, SUGGESTED, "INV-20261013-004")
+    ).toEqual({ number: "INV-20261013-004" });
+    expect(
+      chooseInvoiceNumber(TAKEN, " ", SUGGESTED, "INV-20261013-004")
+    ).toEqual({ number: "INV-20261013-004" });
+  });
+
+  it("uses a number typed in, such as one sent outside the app", () => {
+    expect(
+      chooseInvoiceNumber(TAKEN, " INV-TEST-001 ", SUGGESTED, SUGGESTED)
+    ).toEqual({ number: "INV-TEST-001" });
+  });
+
+  it("won't reuse another invoice's number, even a replaced one", () => {
+    expect(
+      chooseInvoiceNumber(TAKEN, "inv-20261012-001", SUGGESTED, SUGGESTED)
+    ).toEqual({ error: "There's already an invoice inv-20261012-001." });
+  });
+
+  it("won't reuse a number typed in by hand on another booking", () => {
+    expect(
+      chooseInvoiceNumber(TAKEN, "INV-TEST-002", SUGGESTED, SUGGESTED)
+    ).toEqual({ error: "There's already an invoice INV-TEST-002." });
+  });
+
+  it("keeps to characters that work in the PDF's web address", () => {
+    expect(
+      chooseInvoiceNumber(TAKEN, "2024/15", SUGGESTED, SUGGESTED)
+    ).toHaveProperty("error");
+  });
+});
+
+describe("invoice form values", () => {
+  it("show a saved invoice's amounts as plain numbers", () => {
+    const values = formValuesFor(
+      {
+        customer: "John Doe",
+        address: "",
+        regNumber: "",
+        phone: "",
+        email: "",
+        lines: [...LINES, { kind: "extra", description: "Bar", amount: 250.5 }],
+      },
+      "INV-20261013-001"
+    );
+    expect(values).toMatchObject({
+      number: "INV-20261013-001",
+      rentalAmount: "3500",
+      depositAmount: "500",
+      extraDescription: ["Bar"],
+      extraAmount: ["250.50"],
+    });
+  });
+
+  it("keep what was typed, mistakes and all", () => {
+    const form = new FormData();
+    form.set("number", "INV-TEST-002");
+    form.set("customer", "John Doe");
+    form.set("rentalAmount", "35OO");
+    form.append("extraDescription", "Bar");
+    form.append("extraAmount", "250");
+    form.append("extraDescription", "");
+    form.append("extraAmount", "");
+    expect(formValuesFromSubmission(form)).toMatchObject({
+      number: "INV-TEST-002",
+      customer: "John Doe",
+      address: "",
+      rentalAmount: "35OO",
+      extraDescription: ["Bar", ""],
+      extraAmount: ["250", ""],
+    });
   });
 });
 

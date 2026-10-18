@@ -23,12 +23,20 @@ const tracked = withTracking(
   parseBookings([RESPONSE_HEADERS, ...RESPONSE_ROWS]),
   parseTrackingTab([TRACKING_HEADERS, ...TRACKING_ROWS])
 );
-// Djou Ma has been sent an invoice
+// Djou Ma has been sent an invoice. So has Alex Earlier, whose function is
+// over, but on an invoice made outside the app.
+const PAYMENT_STATUS_CHANGES: Record<string, string> = {
+  "Djou Ma": "Invoice Sent",
+  "Alex Earlier": "Invoice Sent",
+};
 const bookings: TrackedBooking[] = tracked.map((booking) =>
-  booking.name === "Djou Ma"
+  PAYMENT_STATUS_CHANGES[booking.name]
     ? {
         ...booking,
-        tracking: { ...booking.tracking, paymentStatus: "Invoice Sent" },
+        tracking: {
+          ...booking.tracking,
+          paymentStatus: PAYMENT_STATUS_CHANGES[booking.name],
+        },
       }
     : booking
 );
@@ -87,6 +95,8 @@ const payments = [
   payment("Djou Ma", 500),
   // R500 over Mary Anyone's invoice
   payment("Mary Anyone", 4500),
+  // Berry Allen paid before cancelling
+  payment("Berry Allen", 2000),
 ];
 
 const todo = paymentsTodo(bookings, invoices, payments, TODAY);
@@ -126,5 +136,30 @@ describe("paymentsTodo", () => {
   it("lists damage deposits still held after the function", () => {
     // Sam Past's was refunded already
     expect(names(todo.depositToRefund)).toEqual(["John Doe"]);
+  });
+
+  it("lists sent invoices made outside the app, whenever the function is", () => {
+    expect(names(todo.sentOutsideApp)).toEqual(["Alex Earlier"]);
+  });
+
+  it("lists cancelled bookings that paid something, with what they paid", () => {
+    expect(names(todo.cancelledToSettle)).toEqual(["Berry Allen"]);
+    expect(todo.cancelledToSettle[0]).toMatchObject({
+      received: 2000,
+      owing: 2000,
+    });
+  });
+
+  it("leaves out cancelled bookings once they're refunded", () => {
+    const refunded = bookings.map((booking) =>
+      booking.name === "Berry Allen"
+        ? {
+            ...booking,
+            tracking: { ...booking.tracking, paymentStatus: "Refunded" },
+          }
+        : booking
+    );
+    const settled = paymentsTodo(refunded, invoices, payments, TODAY);
+    expect(settled.cancelledToSettle).toEqual([]);
   });
 });

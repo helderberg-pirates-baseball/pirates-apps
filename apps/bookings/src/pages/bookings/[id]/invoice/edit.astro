@@ -5,7 +5,14 @@ import BackBar from "../../../../components/BackBar.astro";
 import InvoiceForm from "../../../../components/InvoiceForm.astro";
 import AppLayout from "../../../../layouts/AppLayout.astro";
 import { loadBookingData } from "../../../../lib/data";
-import { currentInvoice, newInvoiceDetails } from "../../../../lib/invoices";
+import { todayInSouthAfrica } from "../../../../lib/dates";
+import {
+  currentInvoice,
+  formValuesFor,
+  formValuesFromSubmission,
+  newInvoiceDetails,
+  nextInvoiceNumber,
+} from "../../../../lib/invoices";
 
 const { user } = Astro.locals;
 const id = Astro.params.id ?? "";
@@ -32,6 +39,17 @@ if (!booking) {
 }
 const invoice = currentInvoice(data.invoices.invoices, booking.timestampKey);
 const { outOfLineRows } = data.tracking;
+// A draft opens with its own number; anything else saves as a new invoice
+// with the next one in line
+const suggestedNumber =
+  invoice?.status === "Draft"
+    ? invoice.number
+    : nextInvoiceNumber(data.invoices.invoices, todayInSouthAfrica());
+// After a failed save, show what was typed rather than starting over. The
+// action reads a copy of the request, so the form is still there to read.
+const values = saveError
+  ? formValuesFromSubmission(await Astro.request.formData())
+  : formValuesFor(invoice ?? newInvoiceDetails(booking), suggestedNumber);
 ---
 
 <AppLayout
@@ -75,7 +93,8 @@ const { outOfLineRows } = data.tracking;
   <InvoiceForm
     booking={booking}
     invoice={invoice}
-    details={invoice ?? newInvoiceDetails(booking)}
+    values={values}
+    suggestedNumber={suggestedNumber}
     canSave={outOfLineRows.length === 0}
   />
 </AppLayout>

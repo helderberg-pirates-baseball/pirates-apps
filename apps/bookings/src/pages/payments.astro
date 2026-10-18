@@ -65,6 +65,14 @@ const SECTIONS: Section[] = [
       `${booking.functionType || "No function type given"} · ${booking.tracking.status}`,
   },
   {
+    key: "sentOutsideApp",
+    title: "Invoice sent, not in the app",
+    action: "Create invoice",
+    href: ({ booking }) => `/bookings/${booking.id}/invoice/edit`,
+    detail: ({ booking }) =>
+      `${booking.tracking.invoiceNumber || "No invoice number"} · ${booking.functionType || "No function type given"}`,
+  },
+  {
     key: "notSent",
     title: "Invoice not sent",
     action: "Send invoice",
@@ -112,6 +120,17 @@ const SECTIONS: Section[] = [
     showsOwing: true,
     paysBack: true,
   },
+  {
+    key: "cancelledToSettle",
+    title: "Cancelled: settle what was paid",
+    action: "Record refund",
+    href: ({ booking }) => `/bookings/${booking.id}/payment?kind=cancelled`,
+    detail: ({ booking, received }) =>
+      received > 0
+        ? `${booking.tracking.status} · ${formatRand(received)} paid`
+        : `${booking.tracking.status} · ${booking.tracking.paymentStatus}`,
+    paysBack: true,
+  },
 ];
 
 // Money matters most close to the function, and once it's past
@@ -127,7 +146,7 @@ const shownSections = todo
   <h1>Payments</h1>
   <p class="lede">
     What still needs doing, soonest function first. Cancelled and declined
-    bookings are left out.
+    bookings only show until what they paid is settled.
   </p>
 
   {!todo ? (

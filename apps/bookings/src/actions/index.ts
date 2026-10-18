@@ -28,6 +28,7 @@ import {
   invoiceValues,
   INVOICES_TAB,
   linesFromForm,
+  chooseInvoiceNumber,
   nextInvoiceNumber,
   parseAmount,
   paymentStatusWhenSent,
@@ -389,6 +390,9 @@ export const server = {
       bookingId: z.string(),
       // The invoice number the form was opened on, or empty for a new one
       shownNumber: z.string().optional(),
+      // The invoice number as typed, and the one the form opened with
+      number: z.string().max(40).optional(),
+      suggestedNumber: z.string().optional(),
       customer: z
         .string()
         .trim()
@@ -442,15 +446,39 @@ export const server = {
         lines: parsed.lines,
       };
       const total = formatRand(invoiceTotal(parsed.lines));
-      let number: string;
       let historyText: string;
 
-      if (current?.status === "Draft") {
-        number = current.number;
-        await writeInvoice(data, booking, { ...current, ...details });
-        historyText = `Invoice ${number} changed (total ${total}).`;
+      const isDraft = current?.status === "Draft";
+      // Numbers already used: every other invoice, and any typed in by hand
+      // on another booking. This booking's own can be reused, to bring an
+      // invoice sent outside the app into it.
+      const takenNumbers = [
+        ...all
+          .filter((invoice) => !(isDraft && invoice === current))
+          .map((invoice) => invoice.number),
+        ...data.bookings
+          .filter((other) => other.timestampKey !== booking.timestampKey)
+          .map((other) => other.tracking.invoiceNumber)
+          .filter(Boolean),
+      ];
+      const chosen = chooseInvoiceNumber(
+        takenNumbers,
+        input.number ?? "",
+        input.suggestedNumber ?? "",
+        isDraft ? current.number : nextInvoiceNumber(all, todayInSouthAfrica())
+      );
+      if ("error" in chosen) {
+        throw new ActionError({ code: "BAD_REQUEST", message: chosen.error });
+      }
+      const number = chosen.number;
+
+      if (isDraft) {
+        await writeInvoice(data, booking, { ...current, ...details, number });
+        historyText =
+          number === current.number
+            ? `Invoice ${number} changed (total ${total}).`
+            : `Invoice ${current.number} changed to ${number} (total ${total}).`;
       } else {
-        number = nextInvoiceNumber(all, todayInSouthAfrica());
         const values = invoiceValues(
           {
             ...details,
@@ -651,7 +679,9 @@ export const server = {
       const user = signedInUser(context);
       requirePayments(user);
       const amount = parseAmount(input.amount);
-      if (amount === null || amount === 0) {
+      // A cancelled booking can be settled with nothing paid back
+      const allowsZero = input.kind === "Refund";
+      if (amount === null || (amount === 0 && !allowsZero)) {
         throw new ActionError({
           code: "BAD_REQUEST",
           message: `"${input.amount}" isn't an amount in rand.`,

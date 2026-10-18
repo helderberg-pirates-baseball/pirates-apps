@@ -181,6 +181,41 @@ export function nextInvoiceNumber(
   return `${prefix}${String(next).padStart(3, "0")}`;
 }
 
+// Typed-in invoice numbers end up in the PDF's web address, so they keep to
+// letters, digits, dashes and underscores
+const INVOICE_NUMBER_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
+
+/**
+ * The number an invoice saves with. Left as `suggested`, the number the
+ * form opened with, it's `unchanged`: a draft's own number, or whatever is
+ * next in line for a new invoice. Anything else typed in is used as it is,
+ * say to match an invoice already sent outside the app, as long as it isn't
+ * one of `takenNumbers`.
+ */
+export function chooseInvoiceNumber(
+  takenNumbers: string[],
+  typed: string,
+  suggested: string,
+  unchanged: string
+): { number: string } | { error: string } {
+  const number = typed.trim();
+  if (number === "" || number === suggested) {
+    return { number: unchanged };
+  }
+  if (!INVOICE_NUMBER_PATTERN.test(number)) {
+    return {
+      error: `"${number}" can only have letters, numbers, dashes and underscores.`,
+    };
+  }
+  const isTaken = takenNumbers.some(
+    (taken) => taken.toLowerCase() === number.toLowerCase()
+  );
+  if (isTaken) {
+    return { error: `There's already an invoice ${number}.` };
+  }
+  return { number };
+}
+
 export function invoiceTotal(lines: InvoiceLine[]): number {
   return lines.reduce((total, line) => total + line.amount, 0);
 }
@@ -269,6 +304,65 @@ export interface InvoiceLinesForm {
   /** Extra lines, matched up by position */
   extraDescription: string[];
   extraAmount: string[];
+}
+
+/**
+ * Everything on the invoice form, as text. It opens with a saved invoice or
+ * a new one's details, or after a failed save with what was typed.
+ */
+export interface InvoiceFormValues extends InvoiceLinesForm {
+  number: string;
+  customer: string;
+  address: string;
+  regNumber: string;
+  phone: string;
+  email: string;
+}
+
+// Shown as plain numbers in the fields
+function amountText(amount: number): string {
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+}
+
+/** The form's values for an invoice's details, with the full price when there's no rental line */
+export function formValuesFor(
+  details: InvoiceDetails,
+  number: string
+): InvoiceFormValues {
+  const rental = details.lines.find((line) => line.kind === "rental");
+  const extras = details.lines.filter((line) => line.kind === "extra");
+  return {
+    number,
+    customer: details.customer,
+    address: details.address,
+    regNumber: details.regNumber,
+    phone: details.phone,
+    email: details.email,
+    rentalDescription: rental?.description ?? "",
+    rentalAmount: amountText(rental?.amount ?? RENTAL_PRICE),
+    depositAmount: amountText(depositAmount(details.lines)),
+    extraDescription: extras.map((line) => line.description),
+    extraAmount: extras.map((line) => amountText(line.amount)),
+  };
+}
+
+/** The form's values as they were sent */
+export function formValuesFromSubmission(form: FormData): InvoiceFormValues {
+  const field = (name: string) => String(form.get(name) ?? "");
+  const all = (name: string) => form.getAll(name).map(String);
+  return {
+    number: field("number"),
+    customer: field("customer"),
+    address: field("address"),
+    regNumber: field("regNumber"),
+    phone: field("phone"),
+    email: field("email"),
+    rentalDescription: field("rentalDescription"),
+    rentalAmount: field("rentalAmount"),
+    depositAmount: field("depositAmount"),
+    extraDescription: all("extraDescription"),
+    extraAmount: all("extraAmount"),
+  };
 }
 
 /** The invoice's lines from the form, or what's wrong with it */

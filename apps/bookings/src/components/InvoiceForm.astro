@@ -1,15 +1,15 @@
 ---
-// The invoice form: who it's for, the rental and damage deposit, and any
-// extra lines. Opens with the booking's details and the full price, or with
-// the saved invoice when there is one.
+// The invoice form: its number, who it's for, the rental and damage deposit,
+// and any extra lines. Opens with the saved invoice, a new one's details and
+// the full price, or what was typed when saving failed.
 import { actions } from "astro:actions";
 import {
   DAMAGE_DEPOSIT,
-  depositAmount,
   MEMBER_RENTAL_PRICE,
+  parseAmount,
   RENTAL_PRICE,
   type Invoice,
-  type InvoiceDetails,
+  type InvoiceFormValues,
 } from "../lib/invoices";
 import type { TrackedBooking } from "../lib/tracking";
 import Icon from "./Icon.astro";
@@ -19,29 +19,70 @@ interface Props {
   /** The invoice being changed, or undefined for a new one */
   invoice: Invoice | undefined;
   /** What the form opens with */
-  details: InvoiceDetails;
+  values: InvoiceFormValues;
+  /** The number the form suggested: a draft's own, or the next in line */
+  suggestedNumber: string;
   /** False when "Tracking Data" is out of line and saving is paused */
   canSave: boolean;
 }
 
-const { booking, invoice, details, canSave } = Astro.props;
-const rental = details.lines.find((line) => line.kind === "rental");
-const extras = details.lines.filter((line) => line.kind === "extra");
-const deposit = depositAmount(details.lines);
-const usesMemberRate = rental?.amount === MEMBER_RENTAL_PRICE && deposit === 0;
+const { booking, invoice, values, suggestedNumber, canSave } = Astro.props;
+const handTypedNumber = booking.tracking.invoiceNumber;
+// The form always ends with a blank extra line, so blank ones sent with a
+// failed save are left out
+const extras = values.extraDescription
+  .map((description, index) => ({
+    description,
+    amount: values.extraAmount[index] ?? "",
+  }))
+  .filter((line) => line.description.trim() || line.amount.trim());
+const usesMemberRate =
+  parseAmount(values.rentalAmount) === MEMBER_RENTAL_PRICE &&
+  parseAmount(values.depositAmount) === 0;
 
 // Amounts as typed: "3500", "3 500", "R3500" or "3500,50"
 const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
-
-// Shown as plain numbers in the fields
-function amountText(amount: number): string {
-  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-}
 ---
 
 <form class="form invoice-form" method="POST" action={actions.saveInvoice}>
   <input type="hidden" name="bookingId" value={booking.id} />
   <input type="hidden" name="shownNumber" value={invoice?.number ?? ""} />
+
+  <section class="panel">
+    <h2>Invoice number</h2>
+    <input type="hidden" name="suggestedNumber" value={suggestedNumber} />
+    <div class="field">
+      <label for="number">Number</label>
+      <div class="number-row">
+        <input
+          id="number"
+          name="number"
+          type="text"
+          value={values.number}
+          required
+          maxlength="40"
+          pattern="[A-Za-z0-9_\-]+"
+          autocomplete="off"
+        />
+        {/* Shown once the number is changed, and only with JavaScript */}
+        <button
+          class="reset-number"
+          type="button"
+          aria-label={`Go back to ${suggestedNumber}`}
+          title={`Go back to ${suggestedNumber}`}
+          data-reset-number={suggestedNumber}
+          hidden
+        >
+          <Icon name="refresh" size={18} />
+        </button>
+      </div>
+      <p class="hint">
+        {handTypedNumber && handTypedNumber !== invoice?.number
+          ? `The booking says ${handTypedNumber} was sent. Type it in to keep that number.`
+          : "Change it to match an invoice already sent outside the app."}
+      </p>
+    </div>
+  </section>
 
   <section class="panel">
     <h2>Customer</h2>
@@ -51,7 +92,7 @@ function amountText(amount: number): string {
         id="customer"
         name="customer"
         type="text"
-        value={details.customer}
+        value={values.customer}
         required
         maxlength="200"
         autocomplete="off"
@@ -65,7 +106,7 @@ function amountText(amount: number): string {
         name="address"
         rows="3"
         maxlength="500"
-        set:text={details.address}
+        set:text={values.address}
       />
     </div>
     <div class="field">
@@ -74,7 +115,7 @@ function amountText(amount: number): string {
         id="regNumber"
         name="regNumber"
         type="text"
-        value={details.regNumber}
+        value={values.regNumber}
         maxlength="100"
         autocomplete="off"
       />
@@ -85,7 +126,7 @@ function amountText(amount: number): string {
         id="phone"
         name="phone"
         type="tel"
-        value={details.phone}
+        value={values.phone}
         maxlength="50"
         autocomplete="off"
       />
@@ -96,7 +137,7 @@ function amountText(amount: number): string {
         id="email"
         name="email"
         type="email"
-        value={details.email}
+        value={values.email}
         maxlength="200"
         autocomplete="off"
       />
@@ -130,7 +171,7 @@ function amountText(amount: number): string {
         id="rentalDescription"
         name="rentalDescription"
         type="text"
-        value={rental?.description ?? ""}
+        value={values.rentalDescription}
         required
         maxlength="300"
         autocomplete="off"
@@ -144,7 +185,7 @@ function amountText(amount: number): string {
         type="text"
         inputmode="decimal"
         pattern={AMOUNT_PATTERN}
-        value={amountText(rental?.amount ?? RENTAL_PRICE)}
+        value={values.rentalAmount}
         required
         maxlength="20"
         autocomplete="off"
@@ -159,7 +200,7 @@ function amountText(amount: number): string {
         type="text"
         inputmode="decimal"
         pattern={AMOUNT_PATTERN}
-        value={amountText(deposit)}
+        value={values.depositAmount}
         maxlength="20"
         autocomplete="off"
         data-amount
@@ -171,7 +212,7 @@ function amountText(amount: number): string {
   <section class="panel">
     <h2>Extra lines</h2>
     <div class="extra-lines" data-extra-lines>
-      {[...extras, { description: "", amount: 0 }].map((line) => (
+      {[...extras, { description: "", amount: "" }].map((line) => (
         <div class="extra-line" data-extra-line>
           <div class="field">
             <label>
@@ -193,7 +234,7 @@ function amountText(amount: number): string {
                 type="text"
                 inputmode="decimal"
                 pattern={AMOUNT_PATTERN}
-                value={line.description ? amountText(line.amount) : ""}
+                value={line.amount}
                 maxlength="20"
                 autocomplete="off"
                 data-amount
@@ -236,6 +277,25 @@ function amountText(amount: number): string {
 </form>
 
 <script>
+  // Going back to the suggested invoice number after changing it
+  const numberInput = document.querySelector<HTMLInputElement>("#number");
+  const resetNumber = document.querySelector<HTMLButtonElement>(
+    "[data-reset-number]"
+  );
+  if (numberInput && resetNumber) {
+    const suggested = resetNumber.dataset.resetNumber!;
+    const updateResetButton = () => {
+      resetNumber.hidden = numberInput.value === suggested;
+    };
+    resetNumber.addEventListener("click", () => {
+      numberInput.value = suggested;
+      updateResetButton();
+      numberInput.focus();
+    });
+    numberInput.addEventListener("input", updateResetButton);
+    updateResetButton();
+  }
+
   // The member rate, adding and removing extra lines, and a running total.
   // Without JavaScript the form still works: amounts are typed by hand and
   // there's one blank extra line per save.
@@ -376,6 +436,27 @@ function amountText(amount: number): string {
     cursor: pointer;
   }
   .remove[hidden] {
+    display: none;
+  }
+  .number-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+  }
+  .reset-number {
+    display: grid;
+    place-items: center;
+    width: var(--tap-size);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+    color: var(--color-primary);
+    cursor: pointer;
+  }
+  .reset-number:hover {
+    border-color: var(--color-primary);
+  }
+  .reset-number[hidden] {
     display: none;
   }
   .invoice-form [data-add-line] {
