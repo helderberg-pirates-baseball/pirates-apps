@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
-import { decodeIdToken } from "arctic";
+import { GOOGLE_CLIENT_ID } from "astro:env/server";
 import {
+  callbackUrl,
   CODE_VERIFIER_COOKIE,
   googleSignIn,
   loadPermissions,
@@ -31,13 +32,22 @@ export const GET: APIRoute = async ({ url, cookies, session, redirect }) => {
 
   let claims: GoogleIdTokenClaims;
   try {
-    const tokens = await googleSignIn(url.origin).validateAuthorizationCode(
+    const client = googleSignIn();
+    const { tokens } = await client.getToken({
       code,
-      codeVerifier
-    );
-    // The ID token comes straight from Google over HTTPS, so it can be read
-    // without checking its signature
-    claims = decodeIdToken(tokens.idToken()) as GoogleIdTokenClaims;
+      codeVerifier,
+      redirect_uri: callbackUrl(url.origin),
+    });
+    if (!tokens.id_token) {
+      throw new Error("Google sent no ID token");
+    }
+    // Checks the token's signature, that it was issued for this app, and
+    // that it hasn't expired
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    claims = ticket.getPayload() ?? {};
   } catch (error) {
     console.error("Google sign-in failed", error);
     return redirect("/login?error=sign-in-failed");
