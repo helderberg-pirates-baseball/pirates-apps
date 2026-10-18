@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The hostname isn't secret, so it's a variable and shows in the logs. The brackets
+      # make stray spaces visible, which would otherwise fail the certificate check.
+      - name: Show FTP server
+        env:
+          FTP_SERVER: ${{ vars.CPANEL_FTP_SERVER }}
+        run: 'echo "FTP server: [$FTP_SERVER]"'
+
       - name: Upload website over FTPS
         uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
         env:
@@ -27,7 +34,7 @@ jobs:
           # than Node's default 250 ms per-address limit, which fails with ETIMEDOUT
           NODE_OPTIONS: --network-family-autoselection-attempt-timeout=2000
         with:
-          server: ${{ secrets.CPANEL_FTP_SERVER }}
+          server: ${{ vars.CPANEL_FTP_SERVER }}
           username: ${{ secrets.CPANEL_FTP_USERNAME }}
           password: ${{ secrets.CPANEL_FTP_PASSWORD }}
           protocol: ftps
