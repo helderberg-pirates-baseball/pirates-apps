@@ -1,70 +1,122 @@
 ---
 // Where an invoice stands at a glance: its number and where it is, a bar
 // showing how much has come in (the mark at half is the deposit that
-// confirms the booking), and the total, received and still to come
+// confirms the booking), and the total, received and still to come.
+// A cancelled or declined booking has nothing more to come, so it shows
+// what came in, what was paid back and what the club keeps instead.
 import { formatRand, invoiceTotal, type Invoice } from "../lib/invoices";
-import { paymentProgress } from "../lib/payments";
+import {
+  amountReceived,
+  paymentProgress,
+  settlement,
+  type Payment,
+} from "../lib/payments";
+import { isCalledOff, type Tracking } from "../lib/tracking";
 import Icon from "./Icon.astro";
 
 interface Props {
   invoice: Invoice;
-  /** Rand received so far */
-  received: number;
+  /** The booking's payments */
+  payments: Payment[];
+  tracking: Tracking;
 }
 
-const { invoice, received } = Astro.props;
+const { invoice, payments, tracking } = Astro.props;
 const total = invoiceTotal(invoice.lines);
+const received = amountReceived(payments);
 const progress = paymentProgress(total, received);
+const settled = isCalledOff(tracking)
+  ? settlement(payments, tracking.paymentStatus)
+  : undefined;
+const stage = settled?.stage ?? progress.stage;
 const tone = {
   "Waiting for deposit": "waiting",
   "Deposit paid": "deposit",
   "Paid in full": "paid",
-}[progress.stage];
+  "To settle": "waiting",
+  Settled: "paid",
+  "Nothing paid": "neutral",
+}[stage];
+const invoiceState = invoice.status === "Draft" ? "Not sent yet" : "Sent";
 ---
 
 <div class:list={["summary", `is-${tone}`]}>
   <div class="heading">
     <span class="invoice">
       <strong>{invoice.number}</strong>
-      <small>{invoice.status === "Draft" ? "Not sent yet" : "Sent"}</small>
+      <small>
+        {settled
+          ? `${invoiceState} · booking ${tracking.status.toLowerCase()}`
+          : invoiceState}
+      </small>
     </span>
     <span class="tag stage">
-      {progress.stage === "Paid in full" && <Icon name="check" size={14} />}
-      {progress.stage}
+      {(stage === "Paid in full" || stage === "Settled") && (
+        <Icon name="check" size={14} />
+      )}
+      {stage}
     </span>
   </div>
 
-  <div
-    class="track"
-    role="img"
-    aria-label={`${formatRand(received)} of ${formatRand(total)} received`}
-  >
-    <span class="fill" style={`width: ${progress.percent}%`}></span>
-    <span class="deposit-mark"></span>
-  </div>
-  <p class="deposit-label" aria-hidden="true">
-    Deposit
-  </p>
+  {settled ? (
+    <>
+      <dl class="figures">
+        <div>
+          <dt>Paid in</dt>
+          <dd>{formatRand(settled.paidIn)}</dd>
+        </div>
+        <div>
+          <dt>Paid back</dt>
+          <dd>{formatRand(settled.paidBack)}</dd>
+        </div>
+        <div>
+          <dt>Kept</dt>
+          <dd>{formatRand(settled.kept)}</dd>
+        </div>
+      </dl>
+      {settled.stage === "To settle" && (
+        <p class="note">
+          Nothing more is coming in. Record what's paid back, even if it's
+          nothing, to settle it.
+        </p>
+      )}
+    </>
+  ) : (
+    <>
+      <div
+        class="track"
+        role="img"
+        aria-label={`${formatRand(received)} of ${formatRand(total)} received`}
+      >
+        <span class="fill" style={`width: ${progress.percent}%`}></span>
+        <span class="deposit-mark"></span>
+      </div>
+      <p class="deposit-label" aria-hidden="true">
+        Deposit
+      </p>
 
-  <dl class="figures">
-    <div>
-      <dt>Invoice</dt>
-      <dd>{formatRand(total)}</dd>
-    </div>
-    <div>
-      <dt>Received</dt>
-      <dd>{formatRand(received)}</dd>
-    </div>
-    <div>
-      <dt>To come</dt>
-      <dd>{formatRand(progress.toCome)}</dd>
-    </div>
-  </dl>
+      <dl class="figures">
+        <div>
+          <dt>Invoice</dt>
+          <dd>{formatRand(total)}</dd>
+        </div>
+        <div>
+          <dt>Received</dt>
+          <dd>{formatRand(received)}</dd>
+        </div>
+        <div>
+          <dt>To come</dt>
+          <dd>{formatRand(progress.toCome)}</dd>
+        </div>
+      </dl>
 
-  {progress.overpaid > 0 && (
-    <p class="overpaid">
-      {formatRand(progress.overpaid)} paid over the invoice, still to pay back.
-    </p>
+      {progress.overpaid > 0 && (
+        <p class="overpaid">
+          {formatRand(progress.overpaid)} paid over the invoice, still to pay
+          back.
+        </p>
+      )}
+    </>
   )}
 </div>
 
@@ -101,6 +153,10 @@ const tone = {
   .is-deposit .stage {
     background: var(--color-primary-soft);
     color: var(--color-primary);
+  }
+  .is-neutral .stage {
+    background: var(--color-surface-sunken);
+    color: var(--color-muted);
   }
   .is-paid .stage {
     background: var(--color-success-soft);
@@ -175,6 +231,11 @@ const tone = {
   .overpaid {
     margin: 0;
     color: var(--color-warning);
+    font-size: 0.875rem;
+  }
+  .note {
+    margin: 0;
+    color: var(--color-muted);
     font-size: 0.875rem;
   }
 

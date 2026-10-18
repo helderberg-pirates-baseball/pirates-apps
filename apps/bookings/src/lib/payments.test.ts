@@ -2,14 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   amountOverpaid,
   amountReceived,
-  damageDepositAfterPayment,
   damageKeptBack,
   describePayment,
   parsePaymentsTab,
   paymentProgress,
   paymentRow,
   paymentsFor,
-  paymentStatusAfterPayment,
+  settlement,
 } from "./payments";
 
 const HEADERS = [
@@ -78,6 +77,11 @@ describe("paymentsFor and amountReceived", () => {
     const overpaidBack = { ...johns[0], kind: "Overpayment refund" as const };
     expect(amountReceived([...johns, overpaidBack])).toBe(2000);
   });
+
+  it("takes money paid back off what came in", () => {
+    const paidBack = { ...johns[0], kind: "Refund" as const, amount: 2000 };
+    expect(amountReceived([...johns, paidBack])).toBe(500);
+  });
 });
 
 describe("amountOverpaid", () => {
@@ -85,36 +89,6 @@ describe("amountOverpaid", () => {
     expect(amountOverpaid(4500, 4000)).toBe(500);
     expect(amountOverpaid(3000, 4000)).toBe(0);
     expect(amountOverpaid(500, 0)).toBe(0);
-  });
-});
-
-describe("paymentStatusAfterPayment", () => {
-  it("is Deposit Paid from half the invoice, Full Payment Received from all of it", () => {
-    expect(paymentStatusAfterPayment("Invoice Sent", 1999, 4000)).toBe(
-      "Invoice Sent"
-    );
-    expect(paymentStatusAfterPayment("Invoice Sent", 2000, 4000)).toBe(
-      "Deposit Paid"
-    );
-    expect(paymentStatusAfterPayment("Deposit Paid", 4000, 4000)).toBe(
-      "Full Payment Received"
-    );
-    expect(paymentStatusAfterPayment("None", 4500, 4000)).toBe(
-      "Full Payment Received"
-    );
-  });
-
-  it("never moves back", () => {
-    expect(paymentStatusAfterPayment("Full Payment Received", 100, 4000)).toBe(
-      "Full Payment Received"
-    );
-  });
-
-  it("leaves Refunded alone, and does nothing without an invoice", () => {
-    expect(paymentStatusAfterPayment("Refunded", 4000, 4000)).toBe("Refunded");
-    expect(paymentStatusAfterPayment("Invoice Sent", 2000, 0)).toBe(
-      "Invoice Sent"
-    );
   });
 });
 
@@ -147,19 +121,34 @@ describe("paymentProgress", () => {
   });
 });
 
-describe("damageDepositAfterPayment", () => {
-  it("is Paid once the whole invoice is", () => {
-    expect(damageDepositAfterPayment("Outstanding", 3999, 4000)).toBe(
-      "Outstanding"
-    );
-    expect(damageDepositAfterPayment("Outstanding", 4000, 4000)).toBe("Paid");
+describe("settlement", () => {
+  const johns = paymentsFor(tab.payments, String(JOHN));
+  const paidBack = { ...johns[0], kind: "Refund" as const, amount: 1000 };
+
+  it("is to settle while what came in hasn't been dealt with", () => {
+    expect(settlement(johns, "Deposit Paid")).toEqual({
+      stage: "To settle",
+      paidIn: 2500,
+      paidBack: 500,
+      kept: 2000,
+    });
   });
 
-  it("leaves a settled or unneeded deposit alone", () => {
-    expect(damageDepositAfterPayment("Not required", 1500, 1500)).toBe(
-      "Not required"
-    );
-    expect(damageDepositAfterPayment("Refunded", 4000, 4000)).toBe("Refunded");
+  it("is settled once the payment status is Refunded", () => {
+    expect(settlement([...johns, paidBack], "Refunded")).toEqual({
+      stage: "Settled",
+      paidIn: 2500,
+      paidBack: 1500,
+      kept: 1000,
+    });
+  });
+
+  it("has nothing paid when no money came in", () => {
+    expect(settlement([], "Invoice Sent").stage).toBe("Nothing paid");
+  });
+
+  it("is to settle when the status says money came in outside the app", () => {
+    expect(settlement([], "Deposit Paid").stage).toBe("To settle");
   });
 });
 

@@ -38,14 +38,12 @@ import {
 import {
   amountOverpaid,
   amountReceived,
-  damageDepositAfterPayment,
   damageKeptBack,
   describePayment,
   PAYMENT_KINDS,
   paymentRow,
   PAYMENTS_TAB,
   paymentsFor,
-  paymentStatusAfterPayment,
 } from "../lib/payments";
 import {
   appendRow,
@@ -656,10 +654,9 @@ export const server = {
   }),
 
   /**
-   * Records money received from the client, or paid back. A payment moves
-   * the payment status forward; paying back the damage deposit settles it;
-   * paying back an overpayment changes no status; any other refund sets the
-   * payment status to Refunded.
+   * Records money received from the client, or paid back, and saves the
+   * payment status and damage deposit chosen with it. The form suggests
+   * those (see payment-statuses.ts) and the treasurer can change them.
    */
   recordPayment: defineAction({
     accept: "form",
@@ -674,6 +671,12 @@ export const server = {
         .regex(/^\d{4}-\d{2}-\d{2}$/, "Fill in the date of the payment."),
       note: z.string().max(300).optional(),
       damageNote: z.string().max(2000).optional(),
+      paymentStatus: z.enum(PAYMENT_STATUSES, {
+        error: "Choose the payment status.",
+      }),
+      damageDeposit: z.enum(DAMAGE_DEPOSIT_STATUSES, {
+        error: "Choose the damage deposit status.",
+      }),
     }),
     handler: async (input, context) => {
       const user = signedInUser(context);
@@ -738,35 +741,16 @@ export const server = {
         })
       );
 
-      let wanted: Partial<Record<EditableField, string>>;
-      if (input.kind === "Payment") {
-        const received = receivedBefore + amount;
-        wanted = {
-          paymentStatus: paymentStatusAfterPayment(
-            booking.tracking.paymentStatus,
-            received,
-            total
-          ),
-          damageDeposit: damageDepositAfterPayment(
-            booking.tracking.damageDeposit,
-            received,
-            total
-          ),
-        };
-      } else if (input.kind === "Damage deposit refund") {
-        wanted = {
-          damageDeposit: "Refunded",
-          damageKeptBack: damageKeptBack(deposit, amount),
-        };
+      const wanted: Partial<Record<EditableField, string>> = {
+        paymentStatus: input.paymentStatus,
+        damageDeposit: input.damageDeposit,
+      };
+      if (input.kind === "Damage deposit refund") {
+        wanted.damageKeptBack = damageKeptBack(deposit, amount);
         const damageNote = input.damageNote?.trim();
         if (damageNote) {
           wanted.damageNote = damageNote;
         }
-      } else if (input.kind === "Overpayment refund") {
-        // The booking is still paid in full: nothing to change
-        wanted = {};
-      } else {
-        wanted = { paymentStatus: "Refunded" };
       }
 
       let historyText = describePayment(payment);

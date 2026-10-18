@@ -4,11 +4,8 @@
 import { actions } from "astro:actions";
 import { shortDate } from "../lib/dates";
 import { formatRand, type Invoice } from "../lib/invoices";
-import {
-  amountReceived,
-  PAYMENT_KIND_LABELS,
-  type Payment,
-} from "../lib/payments";
+import { PAYMENT_KIND_LABELS, type Payment } from "../lib/payments";
+import type { Tracking } from "../lib/tracking";
 import Icon from "./Icon.astro";
 import PaymentSummary from "./PaymentSummary.astro";
 
@@ -18,16 +15,16 @@ interface Props {
   invoice: Invoice | undefined;
   /** The booking's payments, oldest first */
   payments: Payment[];
+  tracking: Tracking;
 }
 
-const { bookingId, invoice, payments } = Astro.props;
-const received = amountReceived(payments);
+const { bookingId, invoice, payments, tracking } = Astro.props;
 ---
 
 <section class="panel" id="payments">
   <h2>Invoice and payments</h2>
   {invoice ? (
-    <PaymentSummary invoice={invoice} received={received} />
+    <PaymentSummary invoice={invoice} payments={payments} tracking={tracking} />
   ) : (
     <p class="note">No invoice yet.</p>
   )}

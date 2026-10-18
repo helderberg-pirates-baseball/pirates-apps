@@ -1,12 +1,8 @@
 // Money received for a booking, and money paid back, in the "Payments" tab.
 // The app owns the tab and adds a row per payment.
 //
-// Recording a payment moves the booking's payment status forward: Deposit
-// Paid once half the invoice is in, Full Payment Received once all of it is.
-// The damage deposit is paid with the invoice, so it counts as Paid once the
-// whole invoice is. Paying back an overpayment takes it off what was
-// received and leaves the statuses alone. Nothing here moves a status back:
-// Edit is there for that.
+// Paying back money or an overpayment takes it off what was received. What
+// a payment does to the booking's statuses is in payment-statuses.ts.
 import { timestampKey } from "./bookings";
 import { dateFromSerial, serialFromDate, shortDate } from "./dates";
 import { formatRand } from "./invoices";
@@ -130,49 +126,21 @@ function totalOf(payments: Payment[], kind: PaymentKind): number {
 }
 
 /**
- * Rand received towards the invoice: what came in, less any overpayment
- * paid back. Paying back the damage deposit or a cancelled booking's money
- * doesn't change it.
+ * Rand received towards the invoice: what came in, less any money or
+ * overpayment paid back. Paying back the damage deposit doesn't change it:
+ * the invoice was still paid.
  */
 export function amountReceived(payments: Payment[]): number {
-  return totalOf(payments, "Payment") - totalOf(payments, "Overpayment refund");
+  return (
+    totalOf(payments, "Payment") -
+    totalOf(payments, "Refund") -
+    totalOf(payments, "Overpayment refund")
+  );
 }
 
 /** Rand received over the invoice total, still to be paid back */
 export function amountOverpaid(received: number, invoiceTotal: number): number {
   return invoiceTotal > 0 ? Math.max(0, received - invoiceTotal) : 0;
-}
-
-// The payment statuses on the way to being paid, in order. Refunded isn't
-// one of them.
-const PAYMENT_PROGRESS = [
-  "None",
-  "Invoice Sent",
-  "Deposit Paid",
-  "Full Payment Received",
-];
-
-/**
- * The payment status once this much of the invoice is in: Deposit Paid from
- * half, Full Payment Received from all of it. It only ever moves forward,
- * and leaves Refunded alone.
- */
-export function paymentStatusAfterPayment(
-  current: string,
-  received: number,
-  invoiceTotal: number
-): string {
-  const currentStep = PAYMENT_PROGRESS.indexOf(current);
-  if (invoiceTotal <= 0 || currentStep === -1) {
-    return current;
-  }
-  let reached = current;
-  if (received >= invoiceTotal) {
-    reached = "Full Payment Received";
-  } else if (received >= invoiceTotal / 2) {
-    reached = "Deposit Paid";
-  }
-  return PAYMENT_PROGRESS.indexOf(reached) > currentStep ? reached : current;
 }
 
 export interface PaymentProgress {
@@ -207,14 +175,43 @@ export function paymentProgress(
   };
 }
 
-/** The damage deposit is part of the invoice, so it's Paid once the whole invoice is */
-export function damageDepositAfterPayment(
-  current: string,
-  received: number,
-  invoiceTotal: number
-): string {
-  const isFullyPaid = invoiceTotal > 0 && received >= invoiceTotal;
-  return isFullyPaid && current === "Outstanding" ? "Paid" : current;
+export interface Settlement {
+  /**
+   * Settled once the payment status is Refunded: whatever was fair has been
+   * paid back
+   */
+  stage: "To settle" | "Settled" | "Nothing paid";
+  /** Rand that came in */
+  paidIn: number;
+  /** Rand paid back, of any kind */
+  paidBack: number;
+  /** Rand the club keeps */
+  kept: number;
+}
+
+/**
+ * Where a cancelled or declined booking's money stands. Nothing more is
+ * coming in, so it's what came in against what went back.
+ */
+export function settlement(
+  payments: Payment[],
+  paymentStatus: string
+): Settlement {
+  const paidIn = totalOf(payments, "Payment");
+  const paidBack = payments
+    .filter((payment) => payment.kind !== "Payment")
+    .reduce((total, payment) => total + payment.amount, 0);
+  const statusSaysPaid =
+    paymentStatus === "Deposit Paid" ||
+    paymentStatus === "Full Payment Received";
+
+  let stage: Settlement["stage"] = "Nothing paid";
+  if (paymentStatus === "Refunded") {
+    stage = "Settled";
+  } else if (paidIn > 0 || statusSaysPaid) {
+    stage = "To settle";
+  }
+  return { stage, paidIn, paidBack, kept: paidIn - paidBack };
 }
 
 /**

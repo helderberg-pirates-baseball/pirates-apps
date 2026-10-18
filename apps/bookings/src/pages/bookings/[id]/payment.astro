@@ -1,14 +1,16 @@
 ---
 // Recording money that came in from the client, or that the club paid back.
-// A payment moves the payment status forward; paying back the damage
-// deposit settles it; paying back an overpayment changes no status; any
-// other refund sets the payment status to Refunded.
+// The payment status and damage deposit it leads to are suggested as the
+// form is filled in (see payment-statuses.ts), and can be changed before
+// saving. Without JavaScript they start as suggested for the chosen kind,
+// and don't follow the amount.
 import { actions, isInputError } from "astro:actions";
 import Alert from "../../../components/Alert.astro";
 import BackBar from "../../../components/BackBar.astro";
 import PaymentSummary from "../../../components/PaymentSummary.astro";
 import AppLayout from "../../../layouts/AppLayout.astro";
 import { loadBookingData } from "../../../lib/data";
+import { suggestedStatuses } from "../../../lib/payment-statuses";
 import { todayInSouthAfrica } from "../../../lib/dates";
 import {
   currentInvoice,
@@ -23,6 +25,10 @@ import {
   paymentsFor,
   type PaymentKind,
 } from "../../../lib/payments";
+import {
+  DAMAGE_DEPOSIT_STATUSES,
+  PAYMENT_STATUSES,
+} from "../../../lib/tracking";
 
 const { user } = Astro.locals;
 const id = Astro.params.id ?? "";
@@ -50,9 +56,8 @@ const { outOfLineRows } = data.tracking;
 const invoice = currentInvoice(data.invoices.invoices, booking.timestampKey);
 const total = invoice ? invoiceTotal(invoice.lines) : 0;
 const deposit = invoice ? depositAmount(invoice.lines) : 0;
-const received = amountReceived(
-  paymentsFor(data.payments.payments, booking.timestampKey)
-);
+const payments = paymentsFor(data.payments.payments, booking.timestampKey);
+const received = amountReceived(payments);
 const overpaid = amountOverpaid(received, total);
 
 // The treasurer's list links here with ?kind=refund to pay back a damage
@@ -67,6 +72,29 @@ if (kindParam === "refund") {
 } else if (kindParam === "cancelled") {
   chosenKind = "Refund";
 }
+const { paymentStatus, damageDeposit } = booking.tracking;
+const suggested = suggestedStatuses(
+  { paymentStatus, damageDeposit },
+  chosenKind,
+  0,
+  received,
+  total
+);
+const statusFields = [
+  {
+    name: "paymentStatus",
+    label: "Payment status",
+    options: PAYMENT_STATUSES,
+    current: paymentStatus,
+  },
+  {
+    name: "damageDeposit",
+    label: "Damage deposit",
+    options: DAMAGE_DEPOSIT_STATUSES,
+    current: damageDeposit,
+  },
+] as const;
+
 const damageRefundHint =
   deposit > 0
     ? `After the function. The damage deposit becomes Refunded, and anything less than ${formatRand(deposit)} is kept back.`
@@ -102,12 +130,24 @@ const amountHint =
     </Alert>
   )}
 
-  <form class="form payment-form" method="POST" action={actions.recordPayment}>
+  <form
+    class="form payment-form"
+    method="POST"
+    action={actions.recordPayment}
+    data-received={received}
+    data-total={total}
+    data-payment-status={paymentStatus}
+    data-damage-deposit={damageDeposit}
+  >
     <input type="hidden" name="bookingId" value={booking.id} />
 
     <div class="panel">
       {invoice ? (
-        <PaymentSummary invoice={invoice} received={received} />
+        <PaymentSummary
+          invoice={invoice}
+          payments={payments}
+          tracking={booking.tracking}
+        />
       ) : (
         <p class="so-far">
           No invoice yet, so the payment status won't move on its own.
@@ -226,6 +266,40 @@ const amountHint =
       </div>
     </div>
 
+    <div class="panel">
+      <h2>Statuses after this</h2>
+      <p class="hint">
+        Filled in from what you enter above. Change them if they should be
+        different.
+      </p>
+      {statusFields.map((field) => (
+        <div class="field">
+          <label for={field.name}>{field.label}</label>
+          <select id={field.name} name={field.name}>
+            {field.options.map((option) => (
+              <option
+                value={option}
+                selected={option === suggested[field.name]}
+              >
+                {option}
+              </option>
+            ))}
+          </select>
+          <p class="hint" data-status-hint={field.name}>
+            {suggested[field.name] === field.current
+              ? `Stays ${field.current}.`
+              : `${field.current} → ${suggested[field.name]}.`}
+          </p>
+          <button
+            class="use-suggested"
+            type="button"
+            data-use-suggested={field.name}
+            hidden
+          ></button>
+        </div>
+      ))}
+    </div>
+
     <div class="form-actions">
       <a class="button" href={`/bookings/${booking.id}`}>
         Cancel
@@ -240,6 +314,85 @@ const amountHint =
     </div>
   </form>
 </AppLayout>
+
+<script>
+  import { suggestedStatuses } from "../../../lib/payment-statuses";
+  import type { PaymentKind } from "../../../lib/payments";
+
+  // The statuses follow what's entered until someone picks one by hand.
+  // "Use suggested" goes back to following.
+  const form = document.querySelector<HTMLFormElement>(".payment-form");
+  const amountInput = document.querySelector<HTMLInputElement>("#amount");
+
+  function amountOf(typed: string): number {
+    const cleaned = typed.replace(/[R\s]/gi, "").replace(",", ".");
+    const amount = Number(cleaned);
+    return Number.isFinite(amount) ? amount : 0;
+  }
+
+  if (form && amountInput) {
+    const current = {
+      paymentStatus: form.dataset.paymentStatus ?? "",
+      damageDeposit: form.dataset.damageDeposit ?? "",
+    };
+    const received = Number(form.dataset.received);
+    const total = Number(form.dataset.total);
+    const fields = ["paymentStatus", "damageDeposit"] as const;
+    const pickedByHand = { paymentStatus: false, damageDeposit: false };
+
+    const suggestion = () => {
+      const kind = form.querySelector<HTMLInputElement>(
+        'input[name="kind"]:checked'
+      )?.value as PaymentKind | undefined;
+      return suggestedStatuses(
+        current,
+        kind ?? "Payment",
+        amountOf(amountInput.value),
+        received,
+        total
+      );
+    };
+
+    const update = () => {
+      const suggested = suggestion();
+      for (const field of fields) {
+        const select = form.querySelector<HTMLSelectElement>(`#${field}`)!;
+        const hint = form.querySelector(`[data-status-hint="${field}"]`)!;
+        const reset = form.querySelector<HTMLButtonElement>(
+          `[data-use-suggested="${field}"]`
+        )!;
+        if (!pickedByHand[field]) {
+          select.value = suggested[field];
+        }
+        hint.textContent =
+          select.value === current[field]
+            ? `Stays ${current[field]}.`
+            : `${current[field]} → ${select.value}.`;
+        reset.hidden = select.value === suggested[field];
+        reset.textContent = `Use suggested: ${suggested[field]}`;
+      }
+    };
+
+    for (const field of fields) {
+      form
+        .querySelector<HTMLSelectElement>(`#${field}`)!
+        .addEventListener("input", () => {
+          // Runs before the form's own listener below, so it doesn't put
+          // the suggestion back over what was just picked
+          pickedByHand[field] = true;
+        });
+      form
+        .querySelector<HTMLButtonElement>(`[data-use-suggested="${field}"]`)!
+        .addEventListener("click", () => {
+          pickedByHand[field] = false;
+          update();
+        });
+    }
+    form.addEventListener("input", update);
+    form.addEventListener("change", update);
+    update();
+  }
+</script>
 
 <style>
   h1 {
@@ -287,6 +440,22 @@ const amountHint =
     color: var(--color-muted);
     font-size: 0.875rem;
     font-weight: 400;
+  }
+
+  .use-suggested {
+    justify-self: start;
+    min-height: var(--tap-size);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-primary);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .use-suggested[hidden] {
+    display: none;
   }
 
   /* The damage box only shows when paying back the damage deposit */
