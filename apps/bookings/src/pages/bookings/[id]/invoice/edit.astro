@@ -10,6 +10,7 @@ import {
   currentInvoice,
   formValuesFor,
   formValuesFromSubmission,
+  isValidInvoiceNumber,
   newInvoiceDetails,
   nextInvoiceNumber,
 } from "../../../../lib/invoices";
@@ -45,11 +46,19 @@ const suggestedNumber =
   invoice?.status === "Draft"
     ? invoice.number
     : nextInvoiceNumber(data.invoices.invoices, todayInSouthAfrica());
+// A booking invoiced outside the app keeps that number when its invoice is
+// made here, if it's in the app's format. The refresh button still offers
+// the next one in line.
+const handTypedNumber = booking.tracking.invoiceNumber;
+const startingNumber =
+  !invoice && isValidInvoiceNumber(handTypedNumber)
+    ? handTypedNumber
+    : suggestedNumber;
 // After a failed save, show what was typed rather than starting over. The
 // action reads a copy of the request, so the form is still there to read.
 const values = saveError
   ? formValuesFromSubmission(await Astro.request.formData())
-  : formValuesFor(invoice ?? newInvoiceDetails(booking), suggestedNumber);
+  : formValuesFor(invoice ?? newInvoiceDetails(booking), startingNumber);
 ---
 
 <AppLayout

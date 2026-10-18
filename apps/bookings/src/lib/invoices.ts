@@ -181,9 +181,25 @@ export function nextInvoiceNumber(
   return `${prefix}${String(next).padStart(3, "0")}`;
 }
 
-// Typed-in invoice numbers end up in the PDF's web address, so they keep to
-// letters, digits, dashes and underscores
-const INVOICE_NUMBER_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
+/**
+ * Typed-in numbers keep to the app's own format, "INV-20261013-001": a real
+ * date as yyyyMMdd, then three digits. The date can be any day, past or
+ * future.
+ */
+export function isValidInvoiceNumber(number: string): boolean {
+  const match = /^INV-(\d{4})(\d{2})(\d{2})-\d{3}$/.exec(number);
+  if (!match) {
+    return false;
+  }
+  const [year, month, day] = match.slice(1).map(Number);
+  // A date like 30 February rolls over into March, so it won't match
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
 
 /**
  * The number an invoice saves with. Left as `suggested`, the number the
@@ -202,9 +218,9 @@ export function chooseInvoiceNumber(
   if (number === "" || number === suggested) {
     return { number: unchanged };
   }
-  if (!INVOICE_NUMBER_PATTERN.test(number)) {
+  if (!isValidInvoiceNumber(number)) {
     return {
-      error: `"${number}" can only have letters, numbers, dashes and underscores.`,
+      error: `"${number}" isn't an invoice number like INV-20261013-001, with a real date in the middle.`,
     };
   }
   const isTaken = takenNumbers.some(

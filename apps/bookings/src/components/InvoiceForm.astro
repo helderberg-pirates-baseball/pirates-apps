@@ -6,6 +6,7 @@ import { actions } from "astro:actions";
 import {
   DAMAGE_DEPOSIT,
   MEMBER_RENTAL_PRICE,
+  isValidInvoiceNumber,
   parseAmount,
   RENTAL_PRICE,
   type Invoice,
@@ -60,16 +61,16 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
           type="text"
           value={values.number}
           required
-          maxlength="40"
-          pattern="[A-Za-z0-9_\-]+"
+          maxlength="16"
+          pattern="INV-\d{8}-\d{3}"
           autocomplete="off"
         />
-        {/* Shown once the number is changed, and only with JavaScript */}
+        {/* Shown while the number isn't the suggested one, and only with JavaScript */}
         <button
           class="reset-number"
           type="button"
-          aria-label={`Go back to ${suggestedNumber}`}
-          title={`Go back to ${suggestedNumber}`}
+          aria-label={`Use ${suggestedNumber}`}
+          title={`Use ${suggestedNumber}`}
           data-reset-number={suggestedNumber}
           hidden
         >
@@ -77,9 +78,11 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         </button>
       </div>
       <p class="hint">
-        {handTypedNumber && handTypedNumber !== invoice?.number
-          ? `The booking says ${handTypedNumber} was sent. Type it in to keep that number.`
-          : "Change it to match an invoice already sent outside the app."}
+        {!invoice && handTypedNumber
+          ? isValidInvoiceNumber(handTypedNumber)
+            ? `The number of the invoice sent outside the app. Use the refresh button for a new one (${suggestedNumber}).`
+            : `The booking says ${handTypedNumber} was sent, but it isn't like INV-20261013-001, so it can't be used.`
+          : "Like INV-20261013-001: the date as yyyyMMdd, then three digits. Change it to match an invoice already sent outside the app."}
       </p>
     </div>
   </section>
@@ -277,7 +280,8 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
 </form>
 
 <script>
-  // Going back to the suggested invoice number after changing it
+  // Switching to the suggested invoice number: back to it after changing it,
+  // or to it from a number the invoice was sent with outside the app
   const numberInput = document.querySelector<HTMLInputElement>("#number");
   const resetNumber = document.querySelector<HTMLButtonElement>(
     "[data-reset-number]"

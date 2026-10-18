@@ -16,6 +16,7 @@ import {
   chooseInvoiceNumber,
   formValuesFor,
   formValuesFromSubmission,
+  isValidInvoiceNumber,
   nextInvoiceNumber,
   parseAmount,
   parseInvoicesTab,
@@ -117,7 +118,7 @@ describe("chooseInvoiceNumber", () => {
   // The invoices' numbers, and one typed in by hand on another booking
   const TAKEN = [
     ...tab.invoices.map((invoice) => invoice.number),
-    "INV-TEST-002",
+    "INV-20250301-001",
   ];
 
   it("uses the unchanged number when the suggestion is left as it is", () => {
@@ -132,26 +133,39 @@ describe("chooseInvoiceNumber", () => {
 
   it("uses a number typed in, such as one sent outside the app", () => {
     expect(
-      chooseInvoiceNumber(TAKEN, " INV-TEST-001 ", SUGGESTED, SUGGESTED)
-    ).toEqual({ number: "INV-TEST-001" });
+      chooseInvoiceNumber(TAKEN, " INV-20240115-007 ", SUGGESTED, SUGGESTED)
+    ).toEqual({ number: "INV-20240115-007" });
   });
 
   it("won't reuse another invoice's number, even a replaced one", () => {
     expect(
-      chooseInvoiceNumber(TAKEN, "inv-20261012-001", SUGGESTED, SUGGESTED)
-    ).toEqual({ error: "There's already an invoice inv-20261012-001." });
+      chooseInvoiceNumber(TAKEN, "INV-20261012-001", SUGGESTED, SUGGESTED)
+    ).toEqual({ error: "There's already an invoice INV-20261012-001." });
   });
 
   it("won't reuse a number typed in by hand on another booking", () => {
     expect(
-      chooseInvoiceNumber(TAKEN, "INV-TEST-002", SUGGESTED, SUGGESTED)
-    ).toEqual({ error: "There's already an invoice INV-TEST-002." });
+      chooseInvoiceNumber(TAKEN, "INV-20250301-001", SUGGESTED, SUGGESTED)
+    ).toEqual({ error: "There's already an invoice INV-20250301-001." });
   });
 
-  it("keeps to characters that work in the PDF's web address", () => {
-    expect(
-      chooseInvoiceNumber(TAKEN, "2024/15", SUGGESTED, SUGGESTED)
-    ).toHaveProperty("error");
+  it("only takes numbers like INV-20261013-001, with a real date", () => {
+    const errors = [
+      "2024/15",
+      "INV-2026101-001",
+      "INV-20261013-01",
+      "inv-20261013-004",
+      "INV-20261332-001",
+      "INV-20260230-001",
+    ].map((typed) => chooseInvoiceNumber(TAKEN, typed, SUGGESTED, SUGGESTED));
+    for (const result of errors) {
+      expect(result).toHaveProperty("error");
+    }
+  });
+
+  it("takes a date in the past or the future", () => {
+    expect(isValidInvoiceNumber("INV-20200229-001")).toBe(true);
+    expect(isValidInvoiceNumber("INV-20991231-999")).toBe(true);
   });
 });
 
@@ -179,7 +193,7 @@ describe("invoice form values", () => {
 
   it("keep what was typed, mistakes and all", () => {
     const form = new FormData();
-    form.set("number", "INV-TEST-002");
+    form.set("number", "INV-20250301-001");
     form.set("customer", "John Doe");
     form.set("rentalAmount", "35OO");
     form.append("extraDescription", "Bar");
@@ -187,7 +201,7 @@ describe("invoice form values", () => {
     form.append("extraDescription", "");
     form.append("extraAmount", "");
     expect(formValuesFromSubmission(form)).toMatchObject({
-      number: "INV-TEST-002",
+      number: "INV-20250301-001",
       customer: "John Doe",
       address: "",
       rentalAmount: "35OO",
