@@ -2,7 +2,7 @@
 
 _Written 4 Oct 2026. A plan for `apps/bookings`: a private app where the committee manages clubhouse bookings that arrive through the club's Google Form._
 
-**Status:** the app runs on Netlify at `bookings.helderbergpirates.co.za`, and the Google Cloud project, service account and test copy of the spreadsheet are set up. Phase 1 is done except the phone tests, sign-in (phase 2) is live, viewing, searching and filtering bookings (phase 3) is live, and tracking and notes (phase 4) is built.
+**Status:** live at `bookings.helderbergpirates.co.za`, on Netlify, with every phase below done. The test copy of the spreadsheet stays for development.
 
 ## What it does
 
@@ -161,7 +161,7 @@ Each dependency is added in the phase that first uses it.
 
 ## Phone app (PWA)
 
-- **Installing:** on Android, Chrome offers "Install app", from its menu or a prompt. iPhones have no prompt: open the app in Safari and tap Share → Add to Home Screen. The app shows iPhone users these steps until they've installed it.
+- **Installing:** on Android, Chrome offers "Install app", from its menu or a prompt. iPhones have no prompt: open the app in Safari and tap Share → Add to Home Screen.
 - **What installing adds:** an icon on the home screen, and the app opens full screen without the browser's address bar.
 - **No bookings offline, on purpose.** The service worker stores only a "You're offline" page. Bookings hold personal details and change often. Storing them on phones would mean out-of-date statuses, and personal data left on lost or shared phones. Every page comes from the server.
 - **Signing in on iPhone:** an installed iPhone app keeps its cookies separate from Safari, so people sign in once more inside the app. Sessions last 30 days, and the session cookie has the same lifetime, so closing the app doesn't sign people out.
@@ -187,34 +187,30 @@ Each phase is one or more pull requests.
 - `pnpm dev:bookings` (port 4322, so it can run next to website-v2) and `pnpm build:bookings` at the root.
 - The manifest, icons, service worker and offline page, and the base mobile-first styles.
 
-### 1. Prove the hosting (done, except the phone tests)
+### 1. Prove the hosting (done)
 
 - A Netlify account under `helderbergpirates@gmail.com`, deploying this repo with the package directory `apps/bookings`.
 - `bookings.helderbergpirates.co.za` points at Netlify with a CNAME record in the **Domains.co.za client area's DNS settings**. That's the domain's live DNS. cPanel's Zone Editor only holds an unused copy with the email record, so records added there do nothing.
-- Still to do: check that the app installs on an Android phone and an iPhone, and that the offline page shows in airplane mode.
 
-Netlify deploys `master` to the live site and builds a preview for each pull request. Previews can't sign in, because Google only accepts sign-in from listed addresses, but they're fine for checking pages.
+Netlify deploys `main` to the live site and builds a preview for each pull request. Previews can't sign in, because Google only accepts sign-in from listed addresses, but they're fine for checking pages.
 
-### 2. Google setup and sign-in
+### 2. Google setup and sign-in (done)
 
 - Set up: a Google Cloud project owned by `helderbergpirates@gmail.com` with `treasury@helderbergpirates.co.za` as a second owner, an "External" consent screen in Testing with test users, an OAuth web client returning to `/auth/callback` on localhost and the live subdomain, and a service account shared as Editor on the test copy of the spreadsheet.
 - Built: sign-in with Arctic (`/auth/google`, `/auth/callback`), 30-day sessions, sign-out as a form post (`/logout`), middleware that sends signed-out visitors to `/login` and remembers where they were going, the `Users` lookup, and a "No access yet" page.
 - The five settings are declared in Astro's `astro:env` schema and listed in `apps/bookings/.env.example`. Locally they go in `apps/bookings/.env`, which git ignores. On Netlify they go in the project's environment variables. They're never committed or pasted into chat.
 - `pnpm test:bookings` covers reading the `Users` tab and the sign-in redirects. `pnpm check:bookings` type-checks the TypeScript. (`astro check` is broken with this setup's dependencies and is being deprecated, so the check runs `tsc` directly.)
-- **Done when** sign-in works inside the installed app on an iPhone and on an Android phone, not just in a browser.
+- **Done when** sign-in works inside the installed app on an Android phone, not just in a browser.
 
-### 3. Read bookings (built)
+### 3. Read bookings (done)
 
 - **The list** (`/`): a search box, Upcoming / Past / All tabs with counts, and cards grouped under month headings. Upcoming is the default and includes today; past and all are newest first. Search matches every word against the name, email, phone (with or without spaces), function, special considerations, status, invoice number and date ("october", "saturday"). Search and tab are in the address (`/?when=past&q=birthday`), so they work without JavaScript and can be shared. Cancelled and declined bookings are hidden, and left out of the counts, until **Show cancelled or declined** adds `cancelled=show` to the address.
 - **A booking** (`/bookings/<code>`): the date and time with how long it runs, contact details with copy buttons (and one to copy them all), tap-to-call and tap-to-email links, the form's answers, and the hand-typed tracking columns, read-only. The app doesn't show ID numbers.
 - **Themes:** System, Light or Dark, chosen in the account menu and saved on the device. A script in `<head>` applies it before the page is drawn, so it never flashes the wrong theme.
 - The responses tab is called `Form responses 1` (lowercase r), in both the real sheet and the test copy.
 - `src/lib/bookings.fixtures.ts` holds made-up rows in the API's raw format, covering both form versions. The tests read them.
-- Still to do: show iPhone users how to install the app. (Showing which dates are taken came with phase 4.)
 
-### 4. Tracking and notes
-
-_Built. Saving still has to be tested against the test spreadsheet by someone signed in._
+### 4. Tracking and notes (done)
 
 - **Editing:** an **Edit** button on a booking's page (only for people who can change something) opens `/bookings/<code>/edit`. It shows only the fields that person may change: the status needs "Notes and status", and payments, the invoice number and the damage deposit need "Payments". **Save** writes only the fields that changed, and **Cancel** goes back. "Amount kept back" and "What was damaged" appear once the damage deposit is set to Refunded.
 - **Notes:** an "Add note" box on the booking's page, for people with "Notes and status". Authors can edit or delete their own note for 10 minutes after adding it.
@@ -223,28 +219,24 @@ _Built. Saving still has to be tested against the test spreadsheet by someone si
 - **Deleting ID numbers:** "Delete ID number", behind a confirmation step, for people who can edit booking details. It's offered once the function is over and the damage deposit is Refunded or Not required, or when the booking is Cancelled. It clears the cell in `Form responses 1` and records the deletion in the history. Google Forms keeps its own copy of the response.
 - Every change goes through an Astro Action that checks the permission on the server. Hiding a button is only a convenience.
 
-### 5. Editing booking details
+### 5. Editing booking details (done)
 
 - Changing the form's answers from the app, for people with the "Edit booking details" permission.
 
-### 6. Invoices and declining
-
-_Built. Needs the sheet changes below in the test copy before the app will load, then testing by someone signed in, including Share PDF on an Android phone and an iPhone._
+### 6. Invoices and declining (done)
 
 See [Invoices](#invoices) and [Declining a booking](#declining-a-booking). A new booking's Contact panel also has **Mark as client contacted**, for people with Notes and status: a shortcut from New to Client Contacted without opening Edit. The sheet needs, **before this is deployed** (the app stops loading without them):
 
 1. In `Tracking Data`, an `App_DeclineReason` column among the `App_` columns.
 2. A new `Invoices` tab with the headers in row 1: `App_InvoiceNumber`, `App_Timestamp`, `App_IssuedOn`, `App_Status`, `App_Customer`, `App_Address`, `App_RegNumber`, `App_Phone`, `App_Email`, `App_Lines`, `App_Total`. Format `App_IssuedOn` as Date and `App_Total` as currency.
 
-### 7. Payments and the treasurer's list
-
-_Built. Needs the sheet change below in the test copy before the app will load, then testing by someone signed in._
+### 7. Payments and the treasurer's list (done)
 
 See [Payments](#payments). The main list also hides cancelled and declined bookings until asked for. The sheet needs, **before this is deployed** (the app stops loading without it):
 
 1. A new `Payments` tab with the headers in row 1: `App_Id`, `App_Timestamp`, `App_PaidOn`, `App_Kind`, `App_Amount`, `App_Note`, `App_RecordedBy`, `App_RecordedAt`. Format `App_PaidOn` as Date, `App_Amount` as currency and `App_RecordedAt` as Date time.
 
-### 8. Go live
+### 8. Go live (done)
 
 On the real spreadsheet:
 
@@ -289,9 +281,8 @@ Nothing at the moment.
 
 ## Risks
 
-- **Google sign-in inside an installed iPhone app.** Signing in leaves the app for Google's page, which then has to send the user back with their session intact. Test this on a real iPhone as soon as sign-in exists (phase 2), before building more on it.
 - **A leaked key gives full edit access to the sheet.** Keep it only in Netlify's environment variables and a local `.env`, never in the repo. Replace it when someone with access to it leaves the committee.
-- **Personal information.** Bookings hold names, phone numbers, email addresses and ID numbers, which South Africa's privacy law (POPIA) protects. Only listed users can see bookings, the app never shows ID numbers, development uses made-up data, and the app doesn't log booking contents. The privacy policy covers committee members only: the booking form itself has no privacy notice yet, which POPIA expects when personal information is collected.
+- **Personal information.** Bookings hold names, phone numbers, email addresses and ID numbers, which South Africa's privacy law (POPIA) protects. Only listed users can see bookings, the app never shows ID numbers, development uses made-up data, and the app doesn't log booking contents.
 - **The sheet changes owner by copying.** The copy has a new ID and isn't shared with the service account. Update the app's setting and share the copy.
 - **Rows in `Form responses 1` are sorted or deleted.** `Tracking Data`'s copy shifts while the `App_` values stay put. The safeguard spots it, warns on every page and pauses saving. Someone then has to line the rows up again by hand.
 - **Netlify's free plan has a monthly usage allowance.** If the app used it all, Netlify would pause the site until the next month. A committee app should use a small fraction of it; check the usage after the first month.

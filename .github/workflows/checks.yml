@@ -1,11 +1,11 @@
 name: Checks
 
-# Runs on every pull request, and on master after a merge, so a broken change
+# Runs on every pull request, and on main after a merge, so a broken change
 # shows up before it's merged (or straight after)
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
 
 # A newer push to the same branch cancels the run that's still going
 concurrency:

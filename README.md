@@ -42,7 +42,7 @@ The old site (`apps/website`) has no build step. `pnpm dev:website` serves it at
 
 ## Checks on pull requests
 
-`.github/workflows/checks.yml` runs on every pull request, and on `master` after a merge:
+`.github/workflows/checks.yml` runs on every pull request, and on `main` after a merge:
 
 | Step                                                                        | Command                                     |
 | --------------------------------------------------------------------------- | ------------------------------------------- |
