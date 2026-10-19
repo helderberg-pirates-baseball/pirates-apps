@@ -7,6 +7,10 @@
     Header set Cache-Control "no-cache"
     Header unset Expires
   </FilesMatch>
+  # Gallery photos get a new address whenever they change, so they can be kept
+  <Files "gallery-photo.php">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </Files>
 </IfModule>
 
 # The fixtures page moved from fixtures.html to fixtures.php (which shows the

@@ -1,11 +1,41 @@
 <?php
-$albums = array_filter(glob('uploads/*'), 'is_dir');
+// The albums come from the club's Google Drive folder: gallery-sync.php copies
+// them onto the server every 15 minutes and lists them in albums.json, above
+// public_html. Each subfolder in Drive is an album here.
+$home = getenv('GALLERY_HOME') ?: dirname(__DIR__);
+$albums = json_decode(@file_get_contents("$home/pirates-website-gallery/albums.json"), true) ?: [];
+
+$album = null;
+$albumMissing = false;
+if (isset($_GET['album'])) {
+    foreach ($albums as $candidate) {
+        if ($candidate['slug'] === $_GET['album']) {
+            $album = $candidate;
+        }
+    }
+    if (!$album) {
+        $albumMissing = true;
+        http_response_code(404);
+    }
+}
+
+function e($text) {
+    return htmlspecialchars($text ?? '', ENT_QUOTES);
+}
+
+function photo_url($name) {
+    return 'gallery-photo.php?p=' . rawurlencode($name);
+}
+
+function album_date($date) {
+    return date('j F Y', strtotime($date));
+}
 ?>
 <html lang="en">
 
 <head>
     <meta charset="utf-8">
-    <title>Helderberg Pirates Baseball</title>
+    <title><?php echo $album ? e($album['title']) . ' | ' : ''; ?>Helderberg Pirates Baseball</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta name="description" content="Photos from Helderberg Pirates games, training sessions and open days at Radloff Park, Somerset West.">
 
@@ -31,22 +61,31 @@ $albums = array_filter(glob('uploads/*'), 'is_dir');
     <link href="css/style.css" rel="stylesheet">
 
  <style>
-       h1 { margin-top: 30px; }
+    h1 { margin-top: 30px; }
     .albums { display: flex; flex-wrap: wrap; justify-content: center; }
-    .album { background: white; border-radius: 8px; margin: 10px; padding: 10px; width: 180px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    .album img { width: 160px; height: 120px; object-fit: cover; border-radius: 6px; }
-    .album a { text-decoration: none; color: #333; display: block; margin-top: 8px; font-weight: bold; }
+    .album { background: white; border-radius: 8px; margin: 10px; padding: 10px; width: 220px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .album img { width: 200px; height: 150px; object-fit: cover; border-radius: 6px; }
+    .album a { text-decoration: none; color: #333; display: block; }
+    .album-title { display: block; margin-top: 8px; font-weight: bold; }
+    .album-meta { display: block; font-size: 0.875rem; color: #6c757d; }
     .gallery { display: flex; flex-wrap: wrap; justify-content: center; margin-top: 30px; }
-    .gallery img { width: 160px; height: 120px; object-fit: cover; border-radius: 6px; margin: 5px; cursor: pointer; transition: 0.2s; }
-    .gallery img:hover { transform: scale(1.05); }
-    .lightbox { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; flex-direction:column; }
-    .lightbox.active { display:flex; }
-    .lightbox img { max-width:90%; max-height:80%; border-radius:10px; }
-    .lightbox p { color:#fff; margin-top:10px; }
-    .nav-btn { position:absolute; top:50%; font-size:40px; color:white; cursor:pointer; user-select:none; }
-    .prev { left:30px; }
-    .next { right:30px; }
-    .close-btn { position:absolute; top:20px; right:30px; font-size:35px; color:white; cursor:pointer; }
+    .gallery button { border: 0; padding: 0; margin: 5px; background: none; border-radius: 6px; cursor: zoom-in; }
+    .gallery img { width: 200px; height: 150px; object-fit: cover; border-radius: 6px; transition: 0.2s; }
+    .gallery button:hover img, .gallery button:focus-visible img { transform: scale(1.05); }
+    .lightbox { position: fixed; inset: 0; z-index: 1050; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; flex-direction: column; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 90%; max-height: 80vh; border-radius: 10px; }
+    .lightbox p { color: #fff; margin: 10px 20px 0; text-align: center; }
+    .lightbox button { position: absolute; border: 0; background: none; color: white; cursor: pointer; line-height: 1; }
+    .lightbox .prev, .lightbox .next { top: 50%; transform: translateY(-50%); font-size: 40px; padding: 10px; }
+    .prev { left: 10px; }
+    .next { right: 10px; }
+    .close-btn { top: 15px; right: 20px; font-size: 40px; }
+    .gallery-note { color: #6c757d; font-size: 0.875rem; margin-top: 40px; }
+    @media (max-width: 575px) {
+      .gallery button { width: calc(50% - 10px); }
+      .gallery img { width: 100%; height: 120px; }
+    }
 </style>
 
 
@@ -111,39 +150,50 @@ $albums = array_filter(glob('uploads/*'), 'is_dir');
         <div class="tab-class text-center">
             <!--Gallery data goes here-->
 
-  <?php if (!isset($_GET['album'])): ?>
-    <div class="albums">
-      <?php foreach ($albums as $albumPath): 
-        $album = basename($albumPath);
-        $images = glob("$albumPath/*.{jpg,jpeg,png,gif}", GLOB_BRACE);
-        $thumb = count($images) ? $images[0] : "uploads/default.jpg";
+  <?php if ($album): ?>
+    <h2><?php echo e($album['title']); ?></h2>
+    <?php if ($album['date']): ?>
+      <p class="album-meta"><?php echo e(album_date($album['date'])); ?></p>
+    <?php endif; ?>
+    <a href="gallery.php">← Back to albums</a>
+    <div class="gallery">
+      <?php foreach ($album['photos'] as $i => $photo):
+        $alt = $photo['caption'] !== '' ? $photo['caption'] : 'Photo ' . ($i + 1) . ' from ' . $album['title'];
       ?>
+        <button type="button" data-full="<?php echo e(photo_url($photo['full'])); ?>" data-caption="<?php echo e($photo['caption']); ?>">
+          <img src="<?php echo e(photo_url($photo['thumb'])); ?>" alt="<?php echo e($alt); ?>" loading="lazy">
+        </button>
+      <?php endforeach; ?>
+    </div>
+  <?php elseif ($albumMissing): ?>
+    <p>That album isn't in the gallery any more.</p>
+    <a href="gallery.php">← Back to albums</a>
+  <?php elseif (!$albums): ?>
+    <p>Photos are on their way. In the meantime, see the club on <a href="https://www.instagram.com/helderbergpirates/" target="_blank">Instagram<span class="visually-hidden"> (opens in a new tab)</span></a>.</p>
+  <?php else: ?>
+    <div class="albums">
+      <?php foreach ($albums as $each): ?>
       <div class="album">
-        <a href="?album=<?php echo urlencode($album); ?>">
-          <img src="<?php echo htmlspecialchars($thumb); ?>" onerror="this.src='uploads/default.jpg'">
-          <?php echo htmlspecialchars($album); ?>
+        <a href="?album=<?php echo rawurlencode($each['slug']); ?>">
+          <img src="<?php echo e(photo_url($each['cover'])); ?>" alt="" loading="lazy">
+          <span class="album-title"><?php echo e($each['title']); ?></span>
+          <span class="album-meta">
+            <?php echo $each['date'] ? e(album_date($each['date'])) . ' · ' : ''; ?>
+            <?php echo count($each['photos']) === 1 ? '1 photo' : count($each['photos']) . ' photos'; ?>
+          </span>
         </a>
       </div>
       <?php endforeach; ?>
     </div>
-  <?php else: 
-    $album = basename($_GET['album']);
-    $images = glob("uploads/$album/*.{jpg,jpeg,png,gif}", GLOB_BRACE);
-  ?>
-    <h2><?php echo htmlspecialchars($album); ?></h2>
-    <a href="gallery.php">← Back to albums</a>
-    <div class="gallery">
-      <?php foreach ($images as $i => $img): ?>
-        <img src="<?php echo htmlspecialchars($img); ?>" data-index="<?php echo $i; ?>">
-      <?php endforeach; ?>
-    </div>
   <?php endif; ?>
 
-  <div class="lightbox">
-    <span class="close-btn">&times;</span>
-    <span class="nav-btn prev">&#10094;</span>
-    <img src="">
-    <span class="nav-btn next">&#10095;</span>
+  <p class="gallery-note">Photos © Helderberg Pirates. Please don't reuse them without the club's permission.</p>
+
+  <div class="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <button type="button" class="close-btn" aria-label="Close">&times;</button>
+    <button type="button" class="nav-btn prev" aria-label="Previous photo">&#10094;</button>
+    <img src="" alt="">
+    <button type="button" class="nav-btn next" aria-label="Next photo">&#10095;</button>
     <p></p>
   </div>
 			<!--gallery data ends here-->
@@ -267,23 +317,48 @@ $albums = array_filter(glob('uploads/*'), 'is_dir');
  <script>
   const lightbox = document.querySelector(".lightbox");
   const lbImg = lightbox.querySelector("img");
-  const imgs = document.querySelectorAll(".gallery img");
+  const lbCaption = lightbox.querySelector("p");
+  const photos = Array.from(document.querySelectorAll(".gallery button"));
   let current = 0;
+  let opener = null;
 
   function show(i) {
-    if (i < 0) i = imgs.length - 1;
-    if (i >= imgs.length) i = 0;
-    current = i;
-    lbImg.src = imgs[i].src;
-    lightbox.classList.add("active");
+    current = (i + photos.length) % photos.length;
+    const photo = photos[current];
+    lbImg.src = photo.dataset.full;
+    lbImg.alt = photo.querySelector("img").alt;
+    lbCaption.textContent = photo.dataset.caption;
+    // Load the next photo while this one is looked at
+    new Image().src = photos[(current + 1) % photos.length].dataset.full;
   }
 
-  imgs.forEach((img, i) => img.addEventListener("click", () => show(i)));
-  document.querySelector(".close-btn").onclick = () => lightbox.classList.remove("active");
-  document.querySelector(".prev").onclick = () => show(current - 1);
-  document.querySelector(".next").onclick = () => show(current + 1);
+  function open(i) {
+    opener = document.activeElement;
+    show(i);
+    lightbox.classList.add("active");
+    lightbox.querySelector(".close-btn").focus();
+  }
+
+  function close() {
+    lightbox.classList.remove("active");
+    if (opener) opener.focus();
+  }
+
+  photos.forEach((photo, i) => photo.addEventListener("click", () => open(i)));
+  lightbox.querySelector(".close-btn").onclick = close;
+  lightbox.querySelector(".prev").onclick = () => show(current - 1);
+  lightbox.querySelector(".next").onclick = () => show(current + 1);
+  lightbox.addEventListener("click", (event) => {
+    if (event.target === lightbox) close();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!lightbox.classList.contains("active")) return;
+    if (event.key === "Escape") close();
+    if (event.key === "ArrowLeft") show(current - 1);
+    if (event.key === "ArrowRight") show(current + 1);
+  });
   </script>
 	
 </body>
 
-</html>
+</html>
