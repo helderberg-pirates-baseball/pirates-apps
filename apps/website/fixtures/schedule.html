@@ -750,6 +750,18 @@
   }
 
   .schedule-sync{ font-size:11.5px; margin:-6px 0 14px; }
+
+  /* Away pill is a link to Google Maps for the club we're travelling to */
+  a.venue-pill.is-link{
+    display:inline-flex; align-items:center; gap:5px;
+    text-decoration:none;
+    color: var(--navy);
+    border-color: rgba(39,53,129,0.45);
+    cursor:pointer;
+  }
+  a.venue-pill.is-link:hover{ background: var(--pink); border-color: var(--navy); }
+  a.venue-pill.is-link:focus-visible{ outline:2.5px solid var(--navy); outline-offset:2px; }
+  a.venue-pill.is-link .pin-icon{ flex:none; }
 </style>
 </head>
 <body>
@@ -882,6 +894,22 @@
   const LEAGUE_SHORT  = { 'Second League': '1st Team' };
   const leagueLabel = (n) => LEAGUE_LABELS[n] || n;
   const leagueShort = (n) => LEAGUE_SHORT[n] || n;
+
+  // Where each opposition club plays (from the "Clubs" tab). Keys are lower-cased club names.
+  let CLUB_LOCATIONS = {};
+  function setClubLocations(obj){
+    CLUB_LOCATIONS = {};
+    Object.keys(obj || {}).forEach(k => { CLUB_LOCATIONS[k.trim().toLowerCase()] = String(obj[k]).trim(); });
+  }
+  // Google Maps link for an away club: the exact link/address from the sheet if there is one,
+  // otherwise a Maps search for "<club> Baseball Club, Cape Town".
+  function mapsUrlFor(opponent){
+    const loc = CLUB_LOCATIONS[String(opponent).trim().toLowerCase()] || '';
+    if (/^https?:\/\//i.test(loc)) return loc;
+    const query = loc || (opponent + ' Baseball Club, Cape Town');
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
+  }
+  const PIN_ICON = '<svg class="pin-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
 
   // One-off changes to the normal field rules for a specific date.
   // Keyed by ISO date, then by the internal team name ("Second League" = 1st Team).
@@ -1017,7 +1045,7 @@
   // After deploying the companion Apps Script (see UmpireSync_Code.gs), paste
   // its web app URL below. Until it's set, umpire picking stays switched off
   // and the page says so rather than failing silently.
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzAyThI12abZtwLOuQDF191GUDKBCJ8milmzL92-ZbW-bMZhmmkpd5YuLG_rfDX9VVO/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyRed63MWiKa0LZaS_JyfDu5uZiqAyS35HE4kTdYvPJzS20meC4fu5LpYrSjOMFQxY/exec';
 
   // Fallback list, used until/unless the "Umpires" tab of the Google Sheet loads.
   let UMPIRES = ["Alex Buys","Bruce Smith","Chirs Tapping","Cole Quattro","Daniel Frank","Devan Rolfe","Ethan Burgess","Garth Uys","Jason Bands","Justin Smith","Kieran Clacket","Kurt Mealing","Lian Malan","Michael Smith","Peter Jokumsen","Richard Footman","Richard Rowe","Rocco King"];
@@ -1067,6 +1095,7 @@
       if (json && json.ok){
         umpireMap = json.data || {};
         if (Array.isArray(json.umpires) && json.umpires.length){ UMPIRES = json.umpires; }
+        if (json.clubs && typeof json.clubs === 'object'){ setClubLocations(json.clubs); render(); }
         setUmpireSyncNote('Umpire picks are shared live with everyone on this page.', false);
         if (Array.isArray(json.fixtures)){
           if (applyLiveFixtures(json.fixtures)){
@@ -1234,10 +1263,10 @@
       }
       const sl = has('Second League'), ma = has('Masters');
       if (sl && ma){
-        out.push({ team:'Second League', field:'Main Diamond', start:'12:30', end:'14:45' });
+        out.push({ team:'Second League', field:'Main Diamond', start:'12:30', end:'14:30' });
         out.push({ team:'Masters', field:'C-Field', start:'13:15', end:'15:15' });
       } else if (sl){
-        out.push({ team:'Second League', field:'Main Diamond', start:'12:30', end:'14:45' });
+        out.push({ team:'Second League', field:'Main Diamond', start:'12:30', end:'14:30' });
       } else if (ma){
         out.push({ team:'Masters', field:'Main Diamond', start:'13:15', end:'15:15' });
       }
@@ -1419,7 +1448,9 @@
           <div class="league-tag">${leagueHtml(f.League, f.Notes ? ' · ' + escapeHtml(f.Notes) : '')}</div>
           ${(!isBye && String(f.Score || '').trim()) ? '<div class="score-line"><span class="score-pill">Final ' + escapeHtml(String(f.Score).trim()) + '</span></div>' : ''}
         </div>
-        <div class="venue-pill ${f.Venue.toLowerCase()}">${isBye ? '—' : f.Venue}</div>
+        ${(!isBye && f.Venue === 'Away')
+          ? `<a class="venue-pill away is-link" href="${escapeHtml(mapsUrlFor(f.Opponent))}" target="_blank" rel="noopener" aria-label="Open ${escapeHtml(f.Opponent)} in Google Maps">${PIN_ICON}Away</a>`
+          : `<div class="venue-pill ${f.Venue.toLowerCase()}">${isBye ? '—' : f.Venue}</div>`}
         <div class="status-note">${isBye ? 'No fixture this round' : (f.Venue === 'Home' ? 'at Helderberg' : 'away trip')}</div>
       `;
       container.appendChild(row);
