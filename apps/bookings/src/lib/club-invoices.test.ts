@@ -208,8 +208,9 @@ describe("clubInvoiceEmail", () => {
 
 describe("invoicePdf for club invoices", () => {
   it("makes a PDF without the 50% deposit note", async () => {
-    const withDeposit = await invoicePdf(draft);
-    const without = await invoicePdf(draft, { showDeposit: false });
+    const signature = { name: "Lian Malan", title: "Treasurer" };
+    const withDeposit = await invoicePdf(draft, { signature });
+    const without = await invoicePdf(draft, { showDeposit: false, signature });
     expect(new TextDecoder().decode(without.slice(0, 5))).toBe("%PDF-");
     expect(without.length).toBeLessThan(withDeposit.length);
   });

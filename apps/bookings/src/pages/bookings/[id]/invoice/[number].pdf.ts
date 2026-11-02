@@ -3,7 +3,7 @@
 import type { APIRoute } from "astro";
 import { loadBookingData } from "../../../../lib/data";
 import { invoicePdf } from "../../../../lib/invoice-pdf";
-import { invoiceFileName } from "../../../../lib/invoices";
+import { invoiceFileName, invoiceSignature } from "../../../../lib/invoices";
 
 export const GET: APIRoute = async ({ params, locals, url }) => {
   if (!locals.user.permissions.payments) {
@@ -19,7 +19,10 @@ export const GET: APIRoute = async ({ params, locals, url }) => {
     return new Response("That invoice isn't there.", { status: 404 });
   }
 
-  const pdf = await invoicePdf(invoice);
+  // Invoices saved before signatures are signed by whoever opens them
+  const pdf = await invoicePdf(invoice, {
+    signature: invoiceSignature(invoice, locals.user.name),
+  });
   const fileName = invoiceFileName(invoice);
   const disposition = url.searchParams.has("download")
     ? "attachment"

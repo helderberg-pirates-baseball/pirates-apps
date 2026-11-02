@@ -26,9 +26,11 @@ import {
 } from "../lib/history";
 import {
   currentInvoice,
+  DEFAULT_SIGNER_TITLE,
   damageDepositStatusFor,
   depositAmount,
   formatRand,
+  invoiceCells,
   invoiceRow,
   invoiceTotal,
   invoiceValues,
@@ -39,7 +41,6 @@ import {
   parseAmount,
   paymentStatusWhenSent,
   type Invoice,
-  type InvoiceColumn,
 } from "../lib/invoices";
 import {
   amountOverpaid,
@@ -200,14 +201,7 @@ async function writeInvoice(
 ): Promise<void> {
   const { columns } = data.invoices;
   const values = invoiceValues(invoice, timestampCell(booking));
-  await writeCells(
-    INVOICES_TAB,
-    (Object.keys(columns) as InvoiceColumn[]).map((column) => ({
-      row: invoice.row,
-      column: columns[column],
-      value: values[column],
-    }))
-  );
+  await writeCells(INVOICES_TAB, invoiceCells(columns, invoice.row, values));
 }
 
 async function addHistory(
@@ -406,6 +400,7 @@ export const server = {
       regNumber: z.string().max(100).optional(),
       phone: z.string().max(50).optional(),
       email: z.string().max(200).optional(),
+      signerTitle: z.string().max(100).optional(),
       rentalDescription: z.string().max(300).optional(),
       rentalAmount: z.string().max(20).optional(),
       depositAmount: z.string().max(20).optional(),
@@ -448,6 +443,9 @@ export const server = {
         phone: input.phone?.trim() ?? "",
         email: input.email?.trim() ?? "",
         lines: parsed.lines,
+        // Signed by whoever saves it, with the title they give
+        signedBy: user.name,
+        signerTitle: input.signerTitle?.trim() || DEFAULT_SIGNER_TITLE,
       };
       const total = formatRand(invoiceTotal(parsed.lines));
       let historyText: string;
@@ -595,6 +593,7 @@ export const server = {
       regNumber: z.string().max(100).optional(),
       phone: z.string().max(50).optional(),
       email: z.string().max(200).optional(),
+      signerTitle: z.string().max(100).optional(),
       description: z.array(z.string().max(300)).max(MAX_CLUB_INVOICE_LINES),
       amount: z.array(z.string().max(20)).max(MAX_CLUB_INVOICE_LINES),
     }),
@@ -643,6 +642,9 @@ export const server = {
         phone: input.phone?.trim() ?? "",
         email: input.email?.trim() ?? "",
         lines: parsed.lines,
+        // Signed by whoever saves it, with the title they give
+        signedBy: user.name,
+        signerTitle: input.signerTitle?.trim() || DEFAULT_SIGNER_TITLE,
       };
 
       const { columns } = data.invoices;
@@ -650,11 +652,7 @@ export const server = {
         const values = invoiceValues({ ...current, ...details, number }, "");
         await writeCells(
           INVOICES_TAB,
-          (Object.keys(columns) as InvoiceColumn[]).map((column) => ({
-            row: current.row,
-            column: columns[column],
-            value: values[column],
-          }))
+          invoiceCells(columns, current.row, values)
         );
       } else {
         const values = invoiceValues(

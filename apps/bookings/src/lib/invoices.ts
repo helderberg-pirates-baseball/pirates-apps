@@ -39,7 +39,12 @@ export interface InvoiceDetails {
   email: string;
   /** A deposit of R0 isn't a line: it's left off the invoice */
   lines: InvoiceLine[];
+  /** The title under the signature, like "Treasurer". Blank means the default. */
+  signerTitle?: string;
 }
+
+/** The title under the signature when none is given */
+export const DEFAULT_SIGNER_TITLE = "Treasurer";
 
 export interface Invoice extends InvoiceDetails {
   /** "INV-20261013-001" */
@@ -51,6 +56,11 @@ export interface Invoice extends InvoiceDetails {
   status: InvoiceStatus;
   /** Its row in the tab (1 is the header row) */
   row: number;
+  /**
+   * Who signs it: the name of whoever last saved it. Blank on invoices saved
+   * before signatures, or when the tab has no column for it.
+   */
+  signedBy?: string;
 }
 
 export const INVOICE_COLUMNS = {
@@ -67,9 +77,16 @@ export const INVOICE_COLUMNS = {
   lines: "App_Lines",
   // Only for reading in the sheet: the app adds up the lines itself
   total: "App_Total",
+  // The signature. These two were added later, so a tab without them still
+  // works: the signature is then left off the sheet.
+  signedBy: "App_SignedBy",
+  signerTitle: "App_SignerTitle",
 } as const;
 
 export type InvoiceColumn = keyof typeof INVOICE_COLUMNS;
+
+/** Columns a tab may leave out. A missing one is -1 in `columns`. */
+const OPTIONAL_INVOICE_COLUMNS: InvoiceColumn[] = ["signedBy", "signerTitle"];
 
 export interface InvoicesTab {
   columns: Record<InvoiceColumn, number>;
@@ -107,7 +124,7 @@ export function parseInvoicesTab(rows: unknown[][]): InvoicesTab {
     string,
   ][]) {
     columns[column] = headers.indexOf(header.toLowerCase());
-    if (columns[column] === -1) {
+    if (columns[column] === -1 && !OPTIONAL_INVOICE_COLUMNS.includes(column)) {
       throw new Error(`The "${INVOICES_TAB}" tab has no "${header}" column`);
     }
   }
@@ -130,6 +147,9 @@ export function parseInvoicesTab(rows: unknown[][]): InvoicesTab {
       phone: text(row[columns.phone]),
       email: text(row[columns.email]),
       lines: parseLines(text(row[columns.lines])),
+      signedBy: columns.signedBy === -1 ? "" : text(row[columns.signedBy]),
+      signerTitle:
+        columns.signerTitle === -1 ? "" : text(row[columns.signerTitle]),
       row: index + 2,
     });
   });
@@ -333,6 +353,7 @@ export interface InvoiceFormValues extends InvoiceLinesForm {
   regNumber: string;
   phone: string;
   email: string;
+  signerTitle: string;
 }
 
 // Shown as plain numbers in the fields
@@ -354,6 +375,7 @@ export function formValuesFor(
     regNumber: details.regNumber,
     phone: details.phone,
     email: details.email,
+    signerTitle: details.signerTitle || DEFAULT_SIGNER_TITLE,
     rentalDescription: rental?.description ?? "",
     rentalAmount: amountText(rental?.amount ?? RENTAL_PRICE),
     depositAmount: amountText(depositAmount(details.lines)),
@@ -373,6 +395,7 @@ export function formValuesFromSubmission(form: FormData): InvoiceFormValues {
     regNumber: field("regNumber"),
     phone: field("phone"),
     email: field("email"),
+    signerTitle: field("signerTitle"),
     rentalDescription: field("rentalDescription"),
     rentalAmount: field("rentalAmount"),
     depositAmount: field("depositAmount"),
@@ -472,6 +495,30 @@ export function invoiceValues(
     email: invoice.email,
     lines: JSON.stringify(invoice.lines),
     total: invoiceTotal(invoice.lines),
+    signedBy: invoice.signedBy ?? "",
+    signerTitle: invoice.signerTitle ?? "",
+  };
+}
+
+/** The cells to write an invoice over its row, leaving out columns the tab doesn't have */
+export function invoiceCells(
+  columns: Record<InvoiceColumn, number>,
+  row: number,
+  values: Record<InvoiceColumn, unknown>
+): { row: number; column: number; value: unknown }[] {
+  return (Object.keys(columns) as InvoiceColumn[])
+    .filter((column) => columns[column] !== -1)
+    .map((column) => ({ row, column: columns[column], value: values[column] }));
+}
+
+/** The name and title to sign with: the invoice's own, or the fallbacks */
+export function invoiceSignature(
+  invoice: Pick<Invoice, "signedBy" | "signerTitle">,
+  fallbackName: string
+): { name: string; title: string } {
+  return {
+    name: invoice.signedBy?.trim() || fallbackName.trim(),
+    title: invoice.signerTitle?.trim() || DEFAULT_SIGNER_TITLE,
   };
 }
 
@@ -484,6 +531,9 @@ export function invoiceRow(
     Math.max(...Object.values(columns)) + 1
   ).fill("");
   for (const column of Object.keys(columns) as InvoiceColumn[]) {
+    if (columns[column] === -1) {
+      continue;
+    }
     row[columns[column]] = values[column];
   }
   return row;
