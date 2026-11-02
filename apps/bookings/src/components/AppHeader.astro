@@ -8,7 +8,9 @@ interface Props {
 
 const { user } = Astro.props;
 const initial = (user.name || user.email).trim().charAt(0).toUpperCase();
-const onPaymentsPage = Astro.url.pathname.replace(/\/$/, "") === "/payments";
+const path = Astro.url.pathname.replace(/\/$/, "");
+const onPaymentsPage = path === "/payments";
+const onInvoicesPage = path === "/invoices" || path.startsWith("/invoices/");
 
 const THEMES: { value: ThemeChoice; label: string; icon: IconName }[] = [
   { value: "system", label: "System", icon: "monitor" },
@@ -26,14 +28,26 @@ const THEMES: { value: ThemeChoice; label: string; icon: IconName }[] = [
 
     <div class="app-bar-end">
       {user.permissions.payments && (
-        <a
-          class="nav-link"
-          href="/payments"
-          aria-current={onPaymentsPage ? "page" : undefined}
-        >
-          <Icon name="banknote" size={18} />
-          Payments
-        </a>
+        <>
+          <a
+            class="nav-link"
+            href="/payments"
+            title="Payments"
+            aria-current={onPaymentsPage ? "page" : undefined}
+          >
+            <Icon name="banknote" size={18} />
+            <span class="nav-label">Payments</span>
+          </a>
+          <a
+            class="nav-link"
+            href="/invoices"
+            title="Invoices"
+            aria-current={onInvoicesPage ? "page" : undefined}
+          >
+            <Icon name="file" size={18} />
+            <span class="nav-label">Invoices</span>
+          </a>
+        </>
       )}
 
       <details class="account" data-account-menu>
@@ -154,6 +168,18 @@ const THEMES: { value: ThemeChoice; label: string; icon: IconName }[] = [
     color: inherit;
     font-weight: 600;
     text-decoration: none;
+  }
+  /* On the narrowest phones the links show only their icons */
+  @media (max-width: 24rem) {
+    .nav-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
   }
   .nav-link:hover,
   .nav-link[aria-current="page"] {

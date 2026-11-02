@@ -8,6 +8,12 @@ import {
 } from "astro:actions";
 import { z } from "astro/zod";
 import { idNumberCell, RESPONSES_TAB } from "../lib/bookings";
+import {
+  chooseClubInvoiceNumber,
+  clubLinesFromForm,
+  findClubInvoice,
+  MAX_CLUB_INVOICE_LINES,
+} from "../lib/club-invoices";
 import { loadBookingData, type BookingData } from "../lib/data";
 import { sheetsNowInSouthAfrica, todayInSouthAfrica } from "../lib/dates";
 import { DECLINE_REASONS } from "../lib/emails";
@@ -563,6 +569,141 @@ export const server = {
         historyText += ` ${describeChanges(booking.tracking, changes)}`;
       }
       await addHistory(data, booking, user, "change", historyText);
+      return { changed: true };
+    },
+  }),
+
+  /**
+   * Creates an invoice for other club business, not a booking, or saves
+   * changes to one. A draft is changed in place. A sent one is replaced by
+   * a new one with a new number.
+   */
+  saveClubInvoice: defineAction({
+    accept: "form",
+    input: z.object({
+      // The invoice number the form was opened on, or empty for a new one
+      shownNumber: z.string().optional(),
+      // The invoice number as typed, and the one the form opened with
+      number: z.string().max(40).optional(),
+      suggestedNumber: z.string().optional(),
+      customer: z
+        .string()
+        .trim()
+        .min(1, "Fill in who the invoice is for.")
+        .max(200),
+      address: z.string().max(500).optional(),
+      regNumber: z.string().max(100).optional(),
+      phone: z.string().max(50).optional(),
+      email: z.string().max(200).optional(),
+      description: z.array(z.string().max(300)).max(MAX_CLUB_INVOICE_LINES),
+      amount: z.array(z.string().max(20)).max(MAX_CLUB_INVOICE_LINES),
+    }),
+    handler: async (input, context) => {
+      const user = signedInUser(context);
+      requirePayments(user);
+
+      const parsed = clubLinesFromForm(input.description, input.amount);
+      if ("error" in parsed) {
+        throw new ActionError({ code: "BAD_REQUEST", message: parsed.error });
+      }
+
+      const data = await loadBookingData();
+      const all = data.invoices.invoices;
+      const shownNumber = input.shownNumber ?? "";
+      const current = shownNumber
+        ? findClubInvoice(all, shownNumber)
+        : undefined;
+      if (shownNumber && (!current || current.status === "Replaced")) {
+        throw new ActionError({
+          code: "CONFLICT",
+          message:
+            "Someone else changed this invoice since you opened it. Reload the page and try again.",
+        });
+      }
+
+      const today = todayInSouthAfrica();
+      const chosen = chooseClubInvoiceNumber(
+        all,
+        data.bookings.map((booking) => booking.tracking.invoiceNumber),
+        current,
+        input.number ?? "",
+        input.suggestedNumber ?? "",
+        today
+      );
+      if ("error" in chosen) {
+        throw new ActionError({ code: "BAD_REQUEST", message: chosen.error });
+      }
+      const { number } = chosen;
+
+      const details = {
+        customer: input.customer,
+        // Browsers send a text box's line breaks as \r\n; keep plain \n
+        address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
+        regNumber: input.regNumber?.trim() ?? "",
+        phone: input.phone?.trim() ?? "",
+        email: input.email?.trim() ?? "",
+        lines: parsed.lines,
+      };
+
+      const { columns } = data.invoices;
+      if (current?.status === "Draft") {
+        const values = invoiceValues({ ...current, ...details, number }, "");
+        await writeCells(
+          INVOICES_TAB,
+          (Object.keys(columns) as InvoiceColumn[]).map((column) => ({
+            row: current.row,
+            column: columns[column],
+            value: values[column],
+          }))
+        );
+      } else {
+        const values = invoiceValues(
+          {
+            ...details,
+            number,
+            bookingKey: "",
+            issuedOn: today,
+            status: "Draft",
+          },
+          ""
+        );
+        await appendRow(INVOICES_TAB, invoiceRow(columns, values));
+        if (current) {
+          await writeCells(INVOICES_TAB, [
+            { row: current.row, column: columns.status, value: "Replaced" },
+          ]);
+        }
+      }
+      return { number };
+    },
+  }),
+
+  /** Marks a club invoice as sent, once someone has emailed it */
+  markClubInvoiceSent: defineAction({
+    accept: "form",
+    input: z.object({ number: z.string() }),
+    handler: async (input, context) => {
+      const user = signedInUser(context);
+      requirePayments(user);
+      const data = await loadBookingData();
+      const invoice = findClubInvoice(data.invoices.invoices, input.number);
+      if (!invoice || invoice.status === "Replaced") {
+        throw new ActionError({
+          code: "CONFLICT",
+          message:
+            "This invoice has been replaced since you opened it. Reload the page and try again.",
+        });
+      }
+      if (invoice.status === "Sent") {
+        return { changed: false };
+      }
+      await writeCells(INVOICES_TAB, [
+        {
+          row: invoice.row,
+          column: data.invoices.columns.status,
+          value: "Sent",
+        },
+      ]);
       return { changed: true };
     },
   }),
