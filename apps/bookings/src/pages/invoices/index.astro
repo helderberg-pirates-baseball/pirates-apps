@@ -1,0 +1,211 @@
+---
+// Invoices for other club business, not bookings: sponsorships, fees,
+// anything someone has to pay the club for. For people with the Payments
+// permission, like the bookings' invoices.
+import Icon from "../../components/Icon.astro";
+import AppLayout from "../../layouts/AppLayout.astro";
+import { clubInvoices } from "../../lib/club-invoices";
+import { loadBookingData, type BookingData } from "../../lib/data";
+import { shortDate } from "../../lib/dates";
+import { formatRand, invoiceTotal } from "../../lib/invoices";
+
+const { user } = Astro.locals;
+if (!user.permissions.payments) {
+  return Astro.redirect("/");
+}
+
+let data: BookingData | undefined;
+try {
+  data = await loadBookingData();
+} catch (error) {
+  console.error("Couldn't load the invoices", error);
+}
+const all = data ? clubInvoices(data.invoices.invoices) : [];
+const current = all.filter((invoice) => invoice.status !== "Replaced");
+const replaced = all.filter((invoice) => invoice.status === "Replaced");
+---
+
+<AppLayout title="Invoices" user={user}>
+  <header class="heading">
+    <div>
+      <h1>Invoices</h1>
+      <p class="lede">
+        For club business that isn't a booking. Bookings' invoices are made from
+        the booking.
+      </p>
+    </div>
+    <a class="button button-primary" href="/invoices/new">
+      <Icon name="file" size={18} />
+      New invoice
+    </a>
+  </header>
+
+  {!data ? (
+    <div class="empty" role="alert">
+      <Icon name="alert" size={32} />
+      <h2>Couldn't load the invoices</h2>
+      <p>Check your connection and try again.</p>
+      <a class="button" href="/invoices">
+        Try again
+      </a>
+    </div>
+  ) : current.length === 0 ? (
+    <div class="empty">
+      <Icon name="file" size={32} />
+      <h2>No invoices yet</h2>
+      <p>Invoices you make here show up in this list.</p>
+    </div>
+  ) : (
+    <ul class="items">
+      {current.map((invoice) => (
+        <li>
+          <a class="item" href={`/invoices/${invoice.number}`}>
+            <span class="who">
+              <strong>{invoice.customer || "No name given"}</strong>
+              <span>
+                {invoice.number}
+                {invoice.issuedOn && ` · ${shortDate(invoice.issuedOn)}`}
+              </span>
+            </span>
+            <span class="amount">
+              {formatRand(invoiceTotal(invoice.lines))}
+            </span>
+            <span
+              class:list={["tag", { "tag-accent": invoice.status === "Draft" }]}
+            >
+              {invoice.status === "Draft" ? "Not sent yet" : "Sent"}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  {replaced.length > 0 && (
+    <section class="replaced">
+      <h2>Replaced invoices</h2>
+      <ul>
+        {replaced.map((invoice) => (
+          <li>
+            <a href={`/invoices/${invoice.number}`}>{invoice.number}</a> ·{" "}
+            {invoice.customer} · {formatRand(invoiceTotal(invoice.lines))}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+</AppLayout>
+
+<style>
+  .heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .heading .button {
+    flex: none;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.625rem;
+  }
+  .lede {
+    margin: 0.25rem 0 0;
+    color: var(--color-muted);
+  }
+
+  .items {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    color: var(--color-text);
+    text-decoration: none;
+  }
+  .item:hover {
+    border-color: var(--color-primary);
+  }
+  .who {
+    display: grid;
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .who strong {
+    overflow-wrap: anywhere;
+  }
+  .who span {
+    color: var(--color-muted);
+    font-size: 0.9375rem;
+  }
+  .amount {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .item .tag {
+    justify-self: end;
+  }
+
+  .replaced {
+    margin-top: 1.5rem;
+    color: var(--color-muted);
+    font-size: 0.9375rem;
+  }
+  .replaced h2 {
+    margin: 0 0 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .replaced ul {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  .empty {
+    display: grid;
+    justify-items: center;
+    gap: 0.75rem;
+    padding: 3rem 1rem;
+    color: var(--color-muted);
+    text-align: center;
+  }
+  .empty h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1.125rem;
+  }
+  .empty p {
+    margin: 0;
+  }
+
+  @media (min-width: 48rem) {
+    h1 {
+      font-size: 2rem;
+    }
+    .item {
+      grid-template-columns: minmax(0, 1fr) 9rem 8rem;
+      padding: 0.75rem 1rem;
+    }
+    .who {
+      grid-column: auto;
+    }
+    .amount {
+      text-align: right;
+    }
+  }
+</style>

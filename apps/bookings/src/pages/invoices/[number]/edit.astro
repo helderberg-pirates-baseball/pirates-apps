@@ -1,0 +1,90 @@
+---
+// Changing an invoice for other club business. A draft changes in place; a
+// sent one is replaced by a new invoice with a new number.
+import { actions, isInputError } from "astro:actions";
+import Alert from "../../../components/Alert.astro";
+import BackBar from "../../../components/BackBar.astro";
+import ClubInvoiceForm from "../../../components/ClubInvoiceForm.astro";
+import AppLayout from "../../../layouts/AppLayout.astro";
+import {
+  clubFormValuesFor,
+  clubFormValuesFromSubmission,
+  findClubInvoice,
+} from "../../../lib/club-invoices";
+import { loadBookingData } from "../../../lib/data";
+import { todayInSouthAfrica } from "../../../lib/dates";
+import { nextInvoiceNumber } from "../../../lib/invoices";
+
+const { user } = Astro.locals;
+const number = Astro.params.number ?? "";
+if (!user.permissions.payments) {
+  return Astro.redirect("/");
+}
+
+// After saving, show the invoice, so reloading can't save twice
+const result = Astro.getActionResult(actions.saveClubInvoice);
+if (result && !result.error) {
+  return Astro.redirect(`/invoices/${result.data.number}?done=saved`);
+}
+const saveError = result?.error
+  ? isInputError(result.error)
+    ? (result.error.issues[0]?.message ?? "Check the form and try again.")
+    : result.error.message
+  : undefined;
+
+const data = await loadBookingData();
+const invoice = findClubInvoice(data.invoices.invoices, number);
+if (!invoice || invoice.status === "Replaced") {
+  return Astro.redirect(invoice ? `/invoices/${number}` : "/invoices");
+}
+// A draft keeps its own number; a sent one is replaced with the next in line
+const suggestedNumber =
+  invoice.status === "Draft"
+    ? invoice.number
+    : nextInvoiceNumber(data.invoices.invoices, todayInSouthAfrica());
+// After a failed save, show what was typed rather than starting over
+const values = saveError
+  ? clubFormValuesFromSubmission(await Astro.request.formData())
+  : clubFormValuesFor(invoice, suggestedNumber);
+---
+
+<AppLayout title={`Edit ${invoice.number}`} user={user}>
+  <BackBar href={`/invoices/${invoice.number}`} label={invoice.number} />
+
+  <h1>Edit {invoice.number}</h1>
+  <p class="lede">{invoice.customer}</p>
+
+  {invoice.status === "Sent" && (
+    <Alert tone="warning" title="This invoice has been sent">
+      <p>
+        Saving makes a new invoice with a new number, and marks {invoice.number}{" "}
+        as replaced. Send the new one instead.
+      </p>
+    </Alert>
+  )}
+  {saveError && (
+    <Alert tone="danger" title="Not saved">
+      {saveError}
+    </Alert>
+  )}
+
+  <ClubInvoiceForm
+    invoice={invoice}
+    values={values}
+    suggestedNumber={suggestedNumber}
+  />
+</AppLayout>
+
+<style>
+  h1 {
+    margin: 0;
+    font-size: 1.625rem;
+  }
+  .lede {
+    margin: 0.25rem 0 1rem;
+    color: var(--color-muted);
+  }
+  :global(.alert) {
+    margin-bottom: 1rem;
+  }
+</style>

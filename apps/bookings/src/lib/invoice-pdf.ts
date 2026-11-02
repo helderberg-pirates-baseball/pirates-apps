@@ -267,18 +267,28 @@ function drawLines(
   return y;
 }
 
-/** The bank details on the left, the 50% to confirm on the right, then thanks */
+/**
+ * The bank details on the left, the 50% to confirm a booking on the right
+ * (bookings only), then thanks
+ */
 function drawFooter(
   page: PDFPage,
   fonts: Fonts,
   invoice: Invoice,
-  top: number
+  top: number,
+  showDeposit: boolean
 ) {
   let y = top + 20;
   write(page, "Bank Details:", LEFT, y, fonts.bold, 10);
   BANK_DETAILS.forEach((line, index) => {
     write(page, line, LEFT, y + 16 + index * 14, fonts.regular, 10);
   });
+  const bankEnd = y + 16 + BANK_DETAILS.length * 14;
+
+  if (!showDeposit) {
+    drawThanks(page, fonts, bankEnd + 30);
+    return;
+  }
 
   const noteX = 320;
   const noteLines = wrap(DEPOSIT_NOTE, fonts.regular, 9.5, RIGHT - noteX);
@@ -296,7 +306,10 @@ function drawFooter(
     10
   );
 
-  y = Math.max(y + 16 + BANK_DETAILS.length * 14, halfY + 14) + 30;
+  drawThanks(page, fonts, Math.max(bankEnd, halfY + 14) + 30);
+}
+
+function drawThanks(page: PDFPage, fonts: Fonts, y: number) {
   write(page, "Thank you", LEFT, y, fonts.bold, 11);
   write(page, CLUB_NAME, LEFT, y + 16, fonts.regular, 10, GREY);
 }
@@ -306,7 +319,18 @@ function logoBytes(): Uint8Array {
   return Uint8Array.from(Buffer.from(base64, "base64"));
 }
 
-export async function invoicePdf(invoice: Invoice): Promise<Uint8Array> {
+export interface InvoicePdfOptions {
+  /**
+   * The note that a booking is only confirmed once 50% is paid. Booking
+   * invoices have it; invoices for other club business don't.
+   */
+  showDeposit?: boolean;
+}
+
+export async function invoicePdf(
+  invoice: Invoice,
+  { showDeposit = true }: InvoicePdfOptions = {}
+): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Invoice ${invoice.number}`);
   pdf.setAuthor(CLUB_NAME);
@@ -321,7 +345,7 @@ export async function invoicePdf(invoice: Invoice): Promise<Uint8Array> {
   drawHeader(page, fonts, logo);
   const customerEnd = drawCustomer(page, fonts, invoice);
   const linesEnd = drawLines(page, fonts, invoice, customerEnd + 20);
-  drawFooter(page, fonts, invoice, linesEnd);
+  drawFooter(page, fonts, invoice, linesEnd, showDeposit);
 
   return pdf.save();
 }

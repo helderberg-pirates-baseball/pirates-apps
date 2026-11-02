@@ -1,0 +1,74 @@
+---
+// A new invoice for other club business, not a booking
+import { actions, isInputError } from "astro:actions";
+import Alert from "../../components/Alert.astro";
+import BackBar from "../../components/BackBar.astro";
+import ClubInvoiceForm from "../../components/ClubInvoiceForm.astro";
+import AppLayout from "../../layouts/AppLayout.astro";
+import {
+  clubFormValuesFor,
+  clubFormValuesFromSubmission,
+} from "../../lib/club-invoices";
+import { loadBookingData } from "../../lib/data";
+import { todayInSouthAfrica } from "../../lib/dates";
+import { nextInvoiceNumber } from "../../lib/invoices";
+
+const { user } = Astro.locals;
+if (!user.permissions.payments) {
+  return Astro.redirect("/");
+}
+
+// After saving, show the invoice, so reloading can't save twice
+const result = Astro.getActionResult(actions.saveClubInvoice);
+if (result && !result.error) {
+  return Astro.redirect(`/invoices/${result.data.number}?done=saved`);
+}
+const saveError = result?.error
+  ? isInputError(result.error)
+    ? (result.error.issues[0]?.message ?? "Check the form and try again.")
+    : result.error.message
+  : undefined;
+
+const data = await loadBookingData();
+const suggestedNumber = nextInvoiceNumber(
+  data.invoices.invoices,
+  todayInSouthAfrica()
+);
+// After a failed save, show what was typed rather than starting over
+const values = saveError
+  ? clubFormValuesFromSubmission(await Astro.request.formData())
+  : clubFormValuesFor(undefined, suggestedNumber);
+---
+
+<AppLayout title="New invoice" user={user}>
+  <BackBar href="/invoices" label="Invoices" />
+
+  <h1>New invoice</h1>
+  <p class="lede">For club business that isn't a booking.</p>
+
+  {saveError && (
+    <Alert tone="danger" title="Not saved">
+      {saveError}
+    </Alert>
+  )}
+
+  <ClubInvoiceForm
+    invoice={undefined}
+    values={values}
+    suggestedNumber={suggestedNumber}
+  />
+</AppLayout>
+
+<style>
+  h1 {
+    margin: 0;
+    font-size: 1.625rem;
+  }
+  .lede {
+    margin: 0.25rem 0 1rem;
+    color: var(--color-muted);
+  }
+  :global(.alert) {
+    margin-bottom: 1rem;
+  }
+</style>
