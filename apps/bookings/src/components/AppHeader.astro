@@ -147,13 +147,22 @@ const THEMES: { value: ThemeChoice; label: string; icon: IconName }[] = [
     font-size: 1.125rem;
     font-weight: 700;
     text-decoration: none;
+    /* If the bar is ever still too narrow, the name gives way first */
+    min-width: 0;
+  }
+  .brand span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .brand img {
+    flex: none;
     border-radius: 50%;
     background: #ffffff;
   }
 
   .app-bar-end {
+    flex: none;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -169,8 +178,15 @@ const THEMES: { value: ThemeChoice; label: string; icon: IconName }[] = [
     font-weight: 600;
     text-decoration: none;
   }
-  /* On the narrowest phones the links show only their icons */
-  @media (max-width: 24rem) {
+  /* The links with their labels need about 28rem (450px) beside the brand
+     and the avatar. Narrower than that, which is most phones, they show
+     only their icons, so the bar never scrolls sideways. */
+  @media (max-width: 30rem) {
+    .nav-link {
+      justify-content: center;
+      width: 2.5rem;
+      padding: 0;
+    }
     .nav-label {
       position: absolute;
       width: 1px;
