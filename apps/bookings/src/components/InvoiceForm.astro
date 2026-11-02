@@ -124,6 +124,18 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
       />
     </div>
     <div class="field">
+      <label for="vatNumber">VAT number (optional)</label>
+      <input
+        id="vatNumber"
+        name="vatNumber"
+        type="text"
+        value={values.vatNumber}
+        maxlength="100"
+        autocomplete="off"
+      />
+      <p class="hint">Only printed on the invoice when filled in.</p>
+    </div>
+    <div class="field">
       <label for="phone">Phone</label>
       <input
         id="phone"
@@ -260,6 +272,26 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
       Add a line
     </button>
     <p class="hint">Leave a line empty to skip it.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Signature</h2>
+    <div class="field">
+      <label for="signerTitle">Your title</label>
+      <input
+        id="signerTitle"
+        name="signerTitle"
+        type="text"
+        value={values.signerTitle}
+        required
+        maxlength="100"
+        autocomplete="organization-title"
+      />
+      <p class="hint">
+        The invoice is signed in your name, {Astro.locals.user.name}, with this
+        title under it.
+      </p>
+    </div>
   </section>
 
   <p class="total" data-total-row hidden>

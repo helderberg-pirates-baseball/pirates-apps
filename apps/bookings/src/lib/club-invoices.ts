@@ -10,6 +10,7 @@
 import type { Email } from "./emails";
 import {
   chooseInvoiceNumber,
+  DEFAULT_SIGNER_TITLE,
   formatRand,
   invoiceTotal,
   nextInvoiceNumber,
@@ -46,8 +47,10 @@ export interface ClubInvoiceFormValues {
   customer: string;
   address: string;
   regNumber: string;
+  vatNumber: string;
   phone: string;
   email: string;
+  signerTitle: string;
   /** The lines, matched up by position */
   description: string[];
   amount: string[];
@@ -68,8 +71,10 @@ export function clubFormValuesFor(
     customer: details?.customer ?? "",
     address: details?.address ?? "",
     regNumber: details?.regNumber ?? "",
+    vatNumber: details?.vatNumber ?? "",
     phone: details?.phone ?? "",
     email: details?.email ?? "",
+    signerTitle: details?.signerTitle || DEFAULT_SIGNER_TITLE,
     description: details?.lines.map((line) => line.description) ?? [],
     amount: details?.lines.map((line) => amountText(line.amount)) ?? [],
   };
@@ -86,8 +91,10 @@ export function clubFormValuesFromSubmission(
     customer: field("customer"),
     address: field("address"),
     regNumber: field("regNumber"),
+    vatNumber: field("vatNumber"),
     phone: field("phone"),
     email: field("email"),
+    signerTitle: field("signerTitle"),
     description: all("description"),
     amount: all("amount"),
   };

@@ -61,6 +61,7 @@ function invoice(name: string, number: string, status: Invoice["status"]) {
     customer: name,
     address: "",
     regNumber: "",
+    vatNumber: "",
     phone: "",
     email: "",
     lines: LINES,

@@ -8,7 +8,10 @@ import {
   damageDepositStatusFor,
   formatRand,
   invoiceFileName,
+  invoiceCells,
   invoiceRow,
+  invoiceSignature,
+  DEFAULT_SIGNER_TITLE,
   invoiceTotal,
   invoiceValues,
   linesFromForm,
@@ -176,6 +179,7 @@ describe("invoice form values", () => {
         customer: "John Doe",
         address: "",
         regNumber: "",
+        vatNumber: "",
         phone: "",
         email: "",
         lines: [...LINES, { kind: "extra", description: "Bar", amount: 250.5 }],
@@ -345,7 +349,69 @@ describe("invoicePdf", () => {
       customer: "Zoë Ndlovu 🎉",
       address: "12 Main Road\nSomerset West",
     };
-    const pdf = await invoicePdf(invoice);
+    const pdf = await invoicePdf(invoice, {
+      signature: { name: "Zoë Malan 🎉", title: "Treasurer" },
+    });
     expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe("%PDF-");
+  });
+
+  it("signs with a long name, or none at all", async () => {
+    for (const name of ["Bartholomew Alexander Montgomery-Smythe III", ""]) {
+      const pdf = await invoicePdf(tab.invoices[1], {
+        signature: { name, title: "Chairperson" },
+      });
+      expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe("%PDF-");
+    }
+  });
+});
+
+describe("signatures", () => {
+  it("reads the newer columns, and works without them", () => {
+    const signedHeaders = [
+      ...HEADERS,
+      "App_SignedBy",
+      "App_SignerTitle",
+      "App_VatNumber",
+    ];
+    const signedRows = ROWS.map((row) => [
+      ...row,
+      "Lian Malan",
+      "Chairperson",
+      "4960309963",
+    ]);
+    const signed = parseInvoicesTab([signedHeaders, ...signedRows]);
+    expect(signed.invoices[0].signedBy).toBe("Lian Malan");
+    expect(signed.invoices[0].signerTitle).toBe("Chairperson");
+    expect(signed.invoices[0].vatNumber).toBe("4960309963");
+
+    expect(tab.columns.signedBy).toBe(-1);
+    expect(tab.columns.vatNumber).toBe(-1);
+    expect(tab.invoices[0].signedBy).toBe("");
+    expect(tab.invoices[0].vatNumber).toBe("");
+  });
+
+  it("leaves columns the tab doesn't have out of what it writes", () => {
+    const values = invoiceValues(
+      { ...tab.invoices[0], signedBy: "Lian Malan" },
+      ""
+    );
+    expect(values.signedBy).toBe("Lian Malan");
+    const cells = invoiceCells(tab.columns, 5, values);
+    expect(cells.every((cell) => cell.column >= 0)).toBe(true);
+    expect(cells).toHaveLength(HEADERS.length);
+    const row = invoiceRow(tab.columns, values);
+    expect(row).toHaveLength(HEADERS.length);
+  });
+
+  it("falls back to the viewer's name and Treasurer", () => {
+    expect(
+      invoiceSignature({ signedBy: "", signerTitle: "" }, "Jo Smit")
+    ).toEqual({ name: "Jo Smit", title: DEFAULT_SIGNER_TITLE });
+    expect(
+      invoiceSignature(
+        { signedBy: "Lian Malan", signerTitle: "Chairperson" },
+        "Jo Smit"
+      )
+    ).toEqual({ name: "Lian Malan", title: "Chairperson" });
   });
 });

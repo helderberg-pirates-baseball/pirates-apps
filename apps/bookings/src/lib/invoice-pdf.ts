@@ -1,4 +1,5 @@
 // Draws an invoice as an A4 PDF, laid out like the club's spreadsheet invoice
+import fontkit from "@pdf-lib/fontkit";
 import {
   PDFDocument,
   rgb,
@@ -7,6 +8,9 @@ import {
   type PDFPage,
 } from "pdf-lib";
 import logoDataUrl from "../assets/invoice-logo.jpg?inline";
+// Great Vibes, a handwriting font, for the signature (SIL Open Font License,
+// in signature-font-LICENSE.txt beside it)
+import signatureFontDataUrl from "../assets/signature-font.ttf?inline";
 import { dayMonthYear } from "./dates";
 import { formatRand, invoiceTotal, type Invoice } from "./invoices";
 
@@ -46,7 +50,24 @@ const HEADER_FILL = rgb(0.93, 0.93, 0.93);
 interface Fonts {
   regular: PDFFont;
   bold: PDFFont;
+  /** Handwriting, for the signature */
+  script: PDFFont;
 }
+
+/** Who signs the invoice, at the bottom right */
+export interface InvoiceSignature {
+  /** "Lian Malan" */
+  name: string;
+  /** "Treasurer" */
+  title: string;
+}
+
+// The signature's column on the right
+const SIGNATURE_LEFT = 360;
+
+// About how far the footer reaches below the lines, down to "Thank you"
+const FOOTER_HEIGHT = 160;
+const FOOTER_HEIGHT_WITH_DEPOSIT = 235;
 
 /**
  * The built-in PDF fonts only have Western European letters (é, ê and ë are
@@ -170,6 +191,7 @@ function drawCustomer(page: PDFPage, fonts: Fonts, invoice: Invoice): number {
     ["Customer", invoice.customer],
     ["Address", invoice.address],
     ["Reg No.", invoice.regNumber],
+    ["VAT No.", invoice.vatNumber],
     ["Phone", invoice.phone],
     ["Email", invoice.email],
   ];
@@ -268,45 +290,103 @@ function drawLines(
 }
 
 /**
- * The bank details on the left, the 50% to confirm a booking on the right
- * (bookings only), then thanks
+ * The bank details on the left. On the right, the 50% to confirm a booking
+ * (bookings only), then the signature. Then thanks.
  */
 function drawFooter(
   page: PDFPage,
   fonts: Fonts,
   invoice: Invoice,
   top: number,
-  showDeposit: boolean
+  showDeposit: boolean,
+  signature: InvoiceSignature
 ) {
-  let y = top + 20;
+  const y = top + 20;
   write(page, "Bank Details:", LEFT, y, fonts.bold, 10);
   BANK_DETAILS.forEach((line, index) => {
     write(page, line, LEFT, y + 16 + index * 14, fonts.regular, 10);
   });
   const bankEnd = y + 16 + BANK_DETAILS.length * 14;
 
-  if (!showDeposit) {
-    drawThanks(page, fonts, bankEnd + 30);
-    return;
+  let rightEnd = y;
+  if (showDeposit) {
+    const noteX = 320;
+    const noteLines = wrap(DEPOSIT_NOTE, fonts.regular, 9.5, RIGHT - noteX);
+    noteLines.forEach((line, index) => {
+      write(page, line, noteX, y + index * 13, fonts.regular, 9.5, GREY);
+    });
+    const halfY = y + noteLines.length * 13 + 8;
+    write(page, "50% of Total", noteX, halfY, fonts.bold, 10);
+    writeRight(
+      page,
+      formatRand(invoiceTotal(invoice.lines) / 2),
+      TOTAL_RIGHT,
+      halfY,
+      fonts.bold,
+      10
+    );
+    rightEnd = halfY + 24;
   }
 
-  const noteX = 320;
-  const noteLines = wrap(DEPOSIT_NOTE, fonts.regular, 9.5, RIGHT - noteX);
-  noteLines.forEach((line, index) => {
-    write(page, line, noteX, y + index * 13, fonts.regular, 9.5, GREY);
-  });
-  const halfY = y + noteLines.length * 13 + 8;
-  write(page, "50% of Total", noteX, halfY, fonts.bold, 10);
-  writeRight(
-    page,
-    formatRand(invoiceTotal(invoice.lines) / 2),
-    TOTAL_RIGHT,
-    halfY,
-    fonts.bold,
-    10
-  );
+  const signatureEnd = drawSignature(page, fonts, signature, rightEnd);
+  drawThanks(page, fonts, Math.max(bankEnd, signatureEnd) + 30);
+}
 
-  drawThanks(page, fonts, Math.max(bankEnd, halfY + 14) + 30);
+/**
+ * The name in handwriting over a line, then the name and title printed
+ * under it, like a signed paper invoice. Returns where it ends.
+ */
+function drawSignature(
+  page: PDFPage,
+  fonts: Fonts,
+  signature: InvoiceSignature,
+  top: number
+): number {
+  const name = signature.name.trim();
+  const title = signature.title.trim();
+  // Shrink a long name so it fits over the line
+  const width = RIGHT - SIGNATURE_LEFT - 10;
+  const handwriting = printable(fonts.script, name);
+  let size = 28;
+  while (
+    size > 14 &&
+    fonts.script.widthOfTextAtSize(handwriting, size) > width
+  ) {
+    size -= 1;
+  }
+  const lineY = top + 40;
+  if (handwriting) {
+    // Centred over the line, sitting just above it
+    const x =
+      SIGNATURE_LEFT +
+      (RIGHT -
+        SIGNATURE_LEFT -
+        fonts.script.widthOfTextAtSize(handwriting, size)) /
+        2;
+    page.drawText(handwriting, {
+      x,
+      y: PAGE_HEIGHT - lineY + 6,
+      size,
+      font: fonts.script,
+      color: rgb(0.05, 0.05, 0.15),
+    });
+  }
+  page.drawLine({
+    start: { x: SIGNATURE_LEFT, y: PAGE_HEIGHT - lineY },
+    end: { x: RIGHT, y: PAGE_HEIGHT - lineY },
+    thickness: 0.75,
+    color: BLACK,
+  });
+  let y = lineY + 6;
+  if (name) {
+    writeRight(page, name, RIGHT, y, fonts.regular, 10);
+    y += 14;
+  }
+  if (title) {
+    writeRight(page, title, RIGHT, y, fonts.regular, 10, GREY);
+    y += 14;
+  }
+  return y;
 }
 
 function drawThanks(page: PDFPage, fonts: Fonts, y: number) {
@@ -314,8 +394,8 @@ function drawThanks(page: PDFPage, fonts: Fonts, y: number) {
   write(page, CLUB_NAME, LEFT, y + 16, fonts.regular, 10, GREY);
 }
 
-function logoBytes(): Uint8Array {
-  const base64 = logoDataUrl.slice(logoDataUrl.indexOf(",") + 1);
+function dataUrlBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
   return Uint8Array.from(Buffer.from(base64, "base64"));
 }
 
@@ -325,27 +405,42 @@ export interface InvoicePdfOptions {
    * invoices have it; invoices for other club business don't.
    */
   showDeposit?: boolean;
+  /** Who signs it, at the bottom right */
+  signature: InvoiceSignature;
 }
 
 export async function invoicePdf(
   invoice: Invoice,
-  { showDeposit = true }: InvoicePdfOptions = {}
+  { showDeposit = true, signature }: InvoicePdfOptions
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Invoice ${invoice.number}`);
   pdf.setAuthor(CLUB_NAME);
 
+  pdf.registerFontkit(fontkit);
   const fonts: Fonts = {
     regular: await pdf.embedFont(StandardFonts.Helvetica),
     bold: await pdf.embedFont(StandardFonts.HelveticaBold),
+    // Only the letters used are kept, so the PDF stays small
+    script: await pdf.embedFont(dataUrlBytes(signatureFontDataUrl), {
+      subset: true,
+    }),
   };
-  const logo = await pdf.embedJpg(logoBytes());
+  const logo = await pdf.embedJpg(dataUrlBytes(logoDataUrl));
 
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   drawHeader(page, fonts, logo);
   const customerEnd = drawCustomer(page, fonts, invoice);
   const linesEnd = drawLines(page, fonts, invoice, customerEnd + 20);
-  drawFooter(page, fonts, invoice, linesEnd, showDeposit);
+  // A long invoice can leave too little room for the bank details and the
+  // signature, so they go on a second page rather than off the bottom
+  const footerHeight = showDeposit ? FOOTER_HEIGHT_WITH_DEPOSIT : FOOTER_HEIGHT;
+  if (linesEnd + footerHeight > PAGE_HEIGHT - 30) {
+    const nextPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    drawFooter(nextPage, fonts, invoice, 30, showDeposit, signature);
+  } else {
+    drawFooter(page, fonts, invoice, linesEnd, showDeposit, signature);
+  }
 
   return pdf.save();
 }

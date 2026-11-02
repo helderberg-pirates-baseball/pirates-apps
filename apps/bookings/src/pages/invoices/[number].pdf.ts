@@ -4,7 +4,7 @@ import type { APIRoute } from "astro";
 import { findClubInvoice } from "../../lib/club-invoices";
 import { loadBookingData } from "../../lib/data";
 import { invoicePdf } from "../../lib/invoice-pdf";
-import { invoiceFileName } from "../../lib/invoices";
+import { invoiceFileName, invoiceSignature } from "../../lib/invoices";
 
 export const GET: APIRoute = async ({ params, locals, url }) => {
   if (!locals.user.permissions.payments) {
@@ -18,7 +18,11 @@ export const GET: APIRoute = async ({ params, locals, url }) => {
   }
 
   // Not a booking, so no 50% to confirm it
-  const pdf = await invoicePdf(invoice, { showDeposit: false });
+  const pdf = await invoicePdf(invoice, {
+    showDeposit: false,
+    // Invoices saved before signatures are signed by whoever opens them
+    signature: invoiceSignature(invoice, locals.user.name),
+  });
   const fileName = invoiceFileName(invoice);
   const disposition = url.searchParams.has("download")
     ? "attachment"
