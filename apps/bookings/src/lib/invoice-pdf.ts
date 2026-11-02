@@ -191,6 +191,7 @@ function drawCustomer(page: PDFPage, fonts: Fonts, invoice: Invoice): number {
     ["Customer", invoice.customer],
     ["Address", invoice.address],
     ["Reg No.", invoice.regNumber],
+    ["VAT No.", invoice.vatNumber],
     ["Phone", invoice.phone],
     ["Email", invoice.email],
   ];

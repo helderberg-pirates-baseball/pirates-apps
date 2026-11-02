@@ -35,6 +35,8 @@ export interface InvoiceDetails {
   address: string;
   /** The company's registration number, for companies */
   regNumber: string;
+  /** The client's VAT number, if they're VAT registered. Left off the invoice when blank. */
+  vatNumber: string;
   phone: string;
   email: string;
   /** A deposit of R0 isn't a line: it's left off the invoice */
@@ -77,16 +79,22 @@ export const INVOICE_COLUMNS = {
   lines: "App_Lines",
   // Only for reading in the sheet: the app adds up the lines itself
   total: "App_Total",
-  // The signature. These two were added later, so a tab without them still
-  // works: the signature is then left off the sheet.
+  // Added later, so a tab without them still works: their values are then
+  // left off the sheet.
   signedBy: "App_SignedBy",
   signerTitle: "App_SignerTitle",
+  // Not the same as the registration number: only VAT-registered clients have one
+  vatNumber: "App_VatNumber",
 } as const;
 
 export type InvoiceColumn = keyof typeof INVOICE_COLUMNS;
 
 /** Columns a tab may leave out. A missing one is -1 in `columns`. */
-const OPTIONAL_INVOICE_COLUMNS: InvoiceColumn[] = ["signedBy", "signerTitle"];
+const OPTIONAL_INVOICE_COLUMNS: InvoiceColumn[] = [
+  "signedBy",
+  "signerTitle",
+  "vatNumber",
+];
 
 export interface InvoicesTab {
   columns: Record<InvoiceColumn, number>;
@@ -144,6 +152,7 @@ export function parseInvoicesTab(rows: unknown[][]): InvoicesTab {
       customer: text(row[columns.customer]),
       address: text(row[columns.address]),
       regNumber: text(row[columns.regNumber]),
+      vatNumber: columns.vatNumber === -1 ? "" : text(row[columns.vatNumber]),
       phone: text(row[columns.phone]),
       email: text(row[columns.email]),
       lines: parseLines(text(row[columns.lines])),
@@ -301,6 +310,7 @@ export function newInvoiceDetails(booking: Booking): InvoiceDetails {
     customer: booking.name,
     address: "",
     regNumber: "",
+    vatNumber: "",
     phone: booking.phone,
     email: booking.email,
     lines: [
@@ -351,6 +361,7 @@ export interface InvoiceFormValues extends InvoiceLinesForm {
   customer: string;
   address: string;
   regNumber: string;
+  vatNumber: string;
   phone: string;
   email: string;
   signerTitle: string;
@@ -373,6 +384,7 @@ export function formValuesFor(
     customer: details.customer,
     address: details.address,
     regNumber: details.regNumber,
+    vatNumber: details.vatNumber,
     phone: details.phone,
     email: details.email,
     signerTitle: details.signerTitle || DEFAULT_SIGNER_TITLE,
@@ -393,6 +405,7 @@ export function formValuesFromSubmission(form: FormData): InvoiceFormValues {
     customer: field("customer"),
     address: field("address"),
     regNumber: field("regNumber"),
+    vatNumber: field("vatNumber"),
     phone: field("phone"),
     email: field("email"),
     signerTitle: field("signerTitle"),
@@ -491,6 +504,7 @@ export function invoiceValues(
     customer: invoice.customer,
     address: invoice.address,
     regNumber: invoice.regNumber,
+    vatNumber: invoice.vatNumber,
     phone: invoice.phone,
     email: invoice.email,
     lines: JSON.stringify(invoice.lines),

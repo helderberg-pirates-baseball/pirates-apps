@@ -398,6 +398,7 @@ export const server = {
         .max(200),
       address: z.string().max(500).optional(),
       regNumber: z.string().max(100).optional(),
+      vatNumber: z.string().max(100).optional(),
       phone: z.string().max(50).optional(),
       email: z.string().max(200).optional(),
       signerTitle: z.string().max(100).optional(),
@@ -440,6 +441,7 @@ export const server = {
         // Browsers send a text box's line breaks as \r\n; keep plain \n
         address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
         regNumber: input.regNumber?.trim() ?? "",
+        vatNumber: input.vatNumber?.trim() ?? "",
         phone: input.phone?.trim() ?? "",
         email: input.email?.trim() ?? "",
         lines: parsed.lines,
@@ -591,6 +593,7 @@ export const server = {
         .max(200),
       address: z.string().max(500).optional(),
       regNumber: z.string().max(100).optional(),
+      vatNumber: z.string().max(100).optional(),
       phone: z.string().max(50).optional(),
       email: z.string().max(200).optional(),
       signerTitle: z.string().max(100).optional(),
@@ -639,6 +642,7 @@ export const server = {
         // Browsers send a text box's line breaks as \r\n; keep plain \n
         address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
         regNumber: input.regNumber?.trim() ?? "",
+        vatNumber: input.vatNumber?.trim() ?? "",
         phone: input.phone?.trim() ?? "",
         email: input.email?.trim() ?? "",
         lines: parsed.lines,

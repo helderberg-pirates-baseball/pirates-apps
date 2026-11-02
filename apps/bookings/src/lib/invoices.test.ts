@@ -179,6 +179,7 @@ describe("invoice form values", () => {
         customer: "John Doe",
         address: "",
         regNumber: "",
+        vatNumber: "",
         phone: "",
         email: "",
         lines: [...LINES, { kind: "extra", description: "Bar", amount: 250.5 }],
@@ -365,15 +366,28 @@ describe("invoicePdf", () => {
 });
 
 describe("signatures", () => {
-  it("reads the signature columns, and works without them", () => {
-    const signedHeaders = [...HEADERS, "App_SignedBy", "App_SignerTitle"];
-    const signedRows = ROWS.map((row) => [...row, "Lian Malan", "Chairperson"]);
+  it("reads the newer columns, and works without them", () => {
+    const signedHeaders = [
+      ...HEADERS,
+      "App_SignedBy",
+      "App_SignerTitle",
+      "App_VatNumber",
+    ];
+    const signedRows = ROWS.map((row) => [
+      ...row,
+      "Lian Malan",
+      "Chairperson",
+      "4960309963",
+    ]);
     const signed = parseInvoicesTab([signedHeaders, ...signedRows]);
     expect(signed.invoices[0].signedBy).toBe("Lian Malan");
     expect(signed.invoices[0].signerTitle).toBe("Chairperson");
+    expect(signed.invoices[0].vatNumber).toBe("4960309963");
 
     expect(tab.columns.signedBy).toBe(-1);
+    expect(tab.columns.vatNumber).toBe(-1);
     expect(tab.invoices[0].signedBy).toBe("");
+    expect(tab.invoices[0].vatNumber).toBe("");
   });
 
   it("leaves columns the tab doesn't have out of what it writes", () => {

@@ -47,6 +47,7 @@ export interface ClubInvoiceFormValues {
   customer: string;
   address: string;
   regNumber: string;
+  vatNumber: string;
   phone: string;
   email: string;
   signerTitle: string;
@@ -70,6 +71,7 @@ export function clubFormValuesFor(
     customer: details?.customer ?? "",
     address: details?.address ?? "",
     regNumber: details?.regNumber ?? "",
+    vatNumber: details?.vatNumber ?? "",
     phone: details?.phone ?? "",
     email: details?.email ?? "",
     signerTitle: details?.signerTitle || DEFAULT_SIGNER_TITLE,
@@ -89,6 +91,7 @@ export function clubFormValuesFromSubmission(
     customer: field("customer"),
     address: field("address"),
     regNumber: field("regNumber"),
+    vatNumber: field("vatNumber"),
     phone: field("phone"),
     email: field("email"),
     signerTitle: field("signerTitle"),
