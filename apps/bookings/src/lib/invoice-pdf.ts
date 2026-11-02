@@ -65,9 +65,18 @@ export interface InvoiceSignature {
 // The signature's column on the right
 const SIGNATURE_LEFT = 360;
 
-// About how far the footer reaches below the lines, down to "Thank you"
-const FOOTER_HEIGHT = 160;
-const FOOTER_HEIGHT_WITH_DEPOSIT = 235;
+// The page's margin, the same at the bottom as at the sides
+const BOTTOM = PAGE_HEIGHT - 50;
+// The signature sits in the bottom right corner: its line is this far up
+// from the margin, with the printed name and title under it
+const SIGNATURE_LINE_Y = BOTTOM - 30;
+// The handwriting reaches about this far above the line
+const SIGNATURE_TOP = SIGNATURE_LINE_Y - 40;
+
+// How far the bank details (left) and the 50% note (right) reach below the
+// lines
+const BANK_DETAILS_HEIGHT = 20 + 16 + BANK_DETAILS.length * 14;
+const DEPOSIT_NOTE_HEIGHT = 85;
 
 /**
  * The built-in PDF fonts only have Western European letters (é, ê and ë are
@@ -290,25 +299,22 @@ function drawLines(
 }
 
 /**
- * The bank details on the left. On the right, the 50% to confirm a booking
- * (bookings only), then the signature. Then thanks.
+ * The bank details on the left, and the 50% to confirm a booking on the
+ * right (bookings only)
  */
 function drawFooter(
   page: PDFPage,
   fonts: Fonts,
   invoice: Invoice,
   top: number,
-  showDeposit: boolean,
-  signature: InvoiceSignature
+  showDeposit: boolean
 ) {
   const y = top + 20;
   write(page, "Bank Details:", LEFT, y, fonts.bold, 10);
   BANK_DETAILS.forEach((line, index) => {
     write(page, line, LEFT, y + 16 + index * 14, fonts.regular, 10);
   });
-  const bankEnd = y + 16 + BANK_DETAILS.length * 14;
 
-  let rightEnd = y;
   if (showDeposit) {
     const noteX = 320;
     const noteLines = wrap(DEPOSIT_NOTE, fonts.regular, 9.5, RIGHT - noteX);
@@ -325,23 +331,18 @@ function drawFooter(
       fonts.bold,
       10
     );
-    rightEnd = halfY + 24;
   }
-
-  const signatureEnd = drawSignature(page, fonts, signature, rightEnd);
-  drawThanks(page, fonts, Math.max(bankEnd, signatureEnd) + 30);
 }
 
 /**
  * The name in handwriting over a line, then the name and title printed
- * under it, like a signed paper invoice. Returns where it ends.
+ * under it, like a signed paper invoice. Always in the bottom right corner.
  */
 function drawSignature(
   page: PDFPage,
   fonts: Fonts,
-  signature: InvoiceSignature,
-  top: number
-): number {
+  signature: InvoiceSignature
+) {
   const name = signature.name.trim();
   const title = signature.title.trim();
   // Shrink a long name so it fits over the line
@@ -354,7 +355,7 @@ function drawSignature(
   ) {
     size -= 1;
   }
-  const lineY = top + 40;
+  const lineY = SIGNATURE_LINE_Y;
   if (handwriting) {
     // Centred over the line, sitting just above it
     const x =
@@ -377,21 +378,18 @@ function drawSignature(
     thickness: 0.75,
     color: BLACK,
   });
-  let y = lineY + 6;
   if (name) {
-    writeRight(page, name, RIGHT, y, fonts.regular, 10);
-    y += 14;
+    writeRight(page, name, RIGHT, lineY + 6, fonts.regular, 10);
   }
   if (title) {
-    writeRight(page, title, RIGHT, y, fonts.regular, 10, GREY);
-    y += 14;
+    writeRight(page, title, RIGHT, lineY + 20, fonts.regular, 10, GREY);
   }
-  return y;
 }
 
-function drawThanks(page: PDFPage, fonts: Fonts, y: number) {
-  write(page, "Thank you", LEFT, y, fonts.bold, 11);
-  write(page, CLUB_NAME, LEFT, y + 16, fonts.regular, 10, GREY);
+/** Thanks in the bottom left corner, level with the name and title under the signature */
+function drawThanks(page: PDFPage, fonts: Fonts) {
+  write(page, "Thank you", LEFT, SIGNATURE_LINE_Y + 5, fonts.bold, 11);
+  write(page, CLUB_NAME, LEFT, SIGNATURE_LINE_Y + 20, fonts.regular, 10, GREY);
 }
 
 function dataUrlBytes(dataUrl: string): Uint8Array {
@@ -432,15 +430,22 @@ export async function invoicePdf(
   drawHeader(page, fonts, logo);
   const customerEnd = drawCustomer(page, fonts, invoice);
   const linesEnd = drawLines(page, fonts, invoice, customerEnd + 20);
-  // A long invoice can leave too little room for the bank details and the
-  // signature, so they go on a second page rather than off the bottom
-  const footerHeight = showDeposit ? FOOTER_HEIGHT_WITH_DEPOSIT : FOOTER_HEIGHT;
-  if (linesEnd + footerHeight > PAGE_HEIGHT - 30) {
-    const nextPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    drawFooter(nextPage, fonts, invoice, 30, showDeposit, signature);
+  // A long invoice can leave too little room above the signature for the
+  // bank details, so they go on a second page, which is then the one signed
+  let lastPage = page;
+  // The bank details must end above "Thank you", and the 50% note above the
+  // signature
+  const fits =
+    linesEnd + BANK_DETAILS_HEIGHT < SIGNATURE_LINE_Y - 10 &&
+    (!showDeposit || linesEnd + DEPOSIT_NOTE_HEIGHT < SIGNATURE_TOP - 5);
+  if (!fits) {
+    lastPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    drawFooter(lastPage, fonts, invoice, 30, showDeposit);
   } else {
-    drawFooter(page, fonts, invoice, linesEnd, showDeposit, signature);
+    drawFooter(page, fonts, invoice, linesEnd, showDeposit);
   }
+  drawSignature(lastPage, fonts, signature);
+  drawThanks(lastPage, fonts);
 
   return pdf.save();
 }
