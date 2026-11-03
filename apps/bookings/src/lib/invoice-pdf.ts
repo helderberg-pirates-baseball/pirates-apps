@@ -14,7 +14,6 @@ import signatureFontDataUrl from "../assets/signature-font.ttf?inline";
 import { dayMonthYear } from "./dates";
 import {
   formatRand,
-  INVOICE_VALID_DAYS,
   invoiceTotal,
   invoiceValidUntil,
   type Invoice,
@@ -406,18 +405,22 @@ function drawSignature(
  * "This invoice is valid for 30 days from the invoice date." and, on its
  * own line, "Valid until: 3 December 2026."
  */
-export function validityNote(issuedOn: string): string {
+export function validityNote(issuedOn: string, validDays: number): string {
+  const days = validDays === 1 ? "1 day" : `${validDays} days`;
   return [
-    `This invoice is valid for ${INVOICE_VALID_DAYS} days from the invoice date.`,
-    `Valid until: ${dayMonthYear(invoiceValidUntil(issuedOn))}.`,
+    `This invoice is valid for ${days} from the invoice date.`,
+    `Valid until: ${dayMonthYear(invoiceValidUntil(issuedOn, validDays))}.`,
   ].join("\n");
 }
 
-/** The validity note's lines, or none when the invoice has no date */
+/**
+ * The validity note's lines, or none when the invoice doesn't say how long
+ * it's valid (or has no date)
+ */
 function validityLines(fonts: Fonts, invoice: Invoice): string[] {
-  return invoice.issuedOn
+  return invoice.issuedOn && invoice.validDays
     ? wrap(
-        validityNote(invoice.issuedOn),
+        validityNote(invoice.issuedOn, invoice.validDays),
         fonts.regular,
         VALIDITY_SIZE,
         VALIDITY_WIDTH

@@ -180,12 +180,13 @@ describe("the form values", () => {
   it("opens with a saved invoice's lines as plain numbers", () => {
     expect(
       clubFormValuesFor(
-        { ...draft, contactName: "Jane Smith" },
+        { ...draft, contactName: "Jane Smith", validDays: 30 },
         draft.number,
         "2026-11-05"
       )
     ).toMatchObject({
       issuedOn: "2026-11-05",
+      validDays: "30",
       customer: "Acme (Pty) Ltd",
       contactName: "Jane Smith",
       regNumber: "2020/123456/07",

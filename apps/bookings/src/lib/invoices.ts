@@ -38,6 +38,11 @@ export interface InvoiceDetails {
    * person, or on invoices saved before contact names.
    */
   contactName?: string;
+  /**
+   * How many days the invoice is valid for, from its date. 0 or missing
+   * leaves the note off the invoice.
+   */
+  validDays?: number;
   address: string;
   /** The company's registration number, for companies */
   regNumber: string;
@@ -93,6 +98,8 @@ export const INVOICE_COLUMNS = {
   vatNumber: "App_VatNumber",
   // The person to address when the customer is a business
   contactName: "App_ContactName",
+  // How many days the invoice is valid for; blank when it doesn't say
+  validDays: "App_ValidDays",
 } as const;
 
 export type InvoiceColumn = keyof typeof INVOICE_COLUMNS;
@@ -103,6 +110,7 @@ const OPTIONAL_INVOICE_COLUMNS: InvoiceColumn[] = [
   "signerTitle",
   "vatNumber",
   "contactName",
+  "validDays",
 ];
 
 export interface InvoicesTab {
@@ -121,6 +129,12 @@ function parseLines(json: string): InvoiceLine[] {
   } catch {
     return [];
   }
+}
+
+/** A whole number of days from the sheet, or 0 */
+function parseValidDays(value: unknown): number {
+  const days = Number(value);
+  return Number.isInteger(days) && days > 0 ? days : 0;
 }
 
 function parseStatus(value: unknown): InvoiceStatus {
@@ -161,6 +175,8 @@ export function parseInvoicesTab(rows: unknown[][]): InvoicesTab {
       customer: text(row[columns.customer]),
       contactName:
         columns.contactName === -1 ? "" : text(row[columns.contactName]),
+      validDays:
+        columns.validDays === -1 ? 0 : parseValidDays(row[columns.validDays]),
       address: text(row[columns.address]),
       regNumber: text(row[columns.regNumber]),
       vatNumber: columns.vatNumber === -1 ? "" : text(row[columns.vatNumber]),
@@ -296,13 +312,34 @@ export function chooseIssuedOn(
   return { issuedOn };
 }
 
-/** How many days an invoice is valid for, counted from its date */
-export const INVOICE_VALID_DAYS = 30;
+/** The most days an invoice can be valid for: about ten years */
+export const MAX_VALID_DAYS = 3650;
 
-/** The last day the invoice is valid: 30 days after its date */
-export function invoiceValidUntil(issuedOn: string): string {
+/**
+ * How many days the invoice is valid for, as typed on the form, or what's
+ * wrong with it. Blank is 0: the invoice says nothing about how long it's
+ * valid, like a booking's, which holds until the function.
+ */
+export function chooseValidDays(
+  typed: string
+): { validDays: number } | { error: string } {
+  const cleaned = typed.trim();
+  if (!cleaned) {
+    return { validDays: 0 };
+  }
+  const days = Number(cleaned);
+  if (!/^\d+$/.test(cleaned) || days < 1 || days > MAX_VALID_DAYS) {
+    return {
+      error: `"${cleaned}" isn't a number of days. Leave it empty if the invoice doesn't expire.`,
+    };
+  }
+  return { validDays: days };
+}
+
+/** The last day the invoice is valid: that many days after its date */
+export function invoiceValidUntil(issuedOn: string, validDays: number): string {
   const [year, month, day] = issuedOn.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day + INVOICE_VALID_DAYS))
+  return new Date(Date.UTC(year, month - 1, day + validDays))
     .toISOString()
     .slice(0, 10);
 }
@@ -355,6 +392,7 @@ export function newInvoiceDetails(booking: Booking): InvoiceDetails {
   return {
     customer: booking.name,
     contactName: "",
+    validDays: 0,
     address: "",
     regNumber: "",
     vatNumber: "",
@@ -407,6 +445,8 @@ export interface InvoiceFormValues extends InvoiceLinesForm {
   number: string;
   /** "2026-10-13" */
   issuedOn: string;
+  /** Empty when the invoice doesn't say how long it's valid */
+  validDays: string;
   customer: string;
   contactName: string;
   address: string;
@@ -433,6 +473,7 @@ export function formValuesFor(
   return {
     number,
     issuedOn,
+    validDays: details.validDays ? String(details.validDays) : "",
     customer: details.customer,
     contactName: details.contactName ?? "",
     address: details.address,
@@ -456,6 +497,7 @@ export function formValuesFromSubmission(form: FormData): InvoiceFormValues {
   return {
     number: field("number"),
     issuedOn: field("issuedOn"),
+    validDays: field("validDays"),
     customer: field("customer"),
     contactName: field("contactName"),
     address: field("address"),
@@ -558,6 +600,7 @@ export function invoiceValues(
     status: invoice.status,
     customer: invoice.customer,
     contactName: invoice.contactName ?? "",
+    validDays: invoice.validDays || "",
     address: invoice.address,
     regNumber: invoice.regNumber,
     vatNumber: invoice.vatNumber,
