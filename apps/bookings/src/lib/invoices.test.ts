@@ -18,6 +18,7 @@ import {
   newInvoiceDetails,
   chooseInvoiceNumber,
   chooseIssuedOn,
+  chooseValidDays,
   INVOICE_COLUMNS,
   invoiceValidUntil,
   formValuesFor,
@@ -193,6 +194,7 @@ describe("invoice form values", () => {
     expect(values).toMatchObject({
       number: "INV-20261013-001",
       issuedOn: "2026-10-18",
+      validDays: "",
       contactName: "",
       rentalAmount: "3500",
       depositAmount: "500",
@@ -435,16 +437,18 @@ describe("signatures", () => {
 });
 
 describe("the invoice date and how long it's valid", () => {
-  it("is valid for 30 days from the invoice date", () => {
-    expect(invoiceValidUntil("2026-11-03")).toBe("2026-12-03");
-    expect(invoiceValidUntil("2026-12-15")).toBe("2027-01-14");
-    expect(invoiceValidUntil("2028-02-10")).toBe("2028-03-11");
+  it("counts the valid days from the invoice date", () => {
+    expect(invoiceValidUntil("2026-11-03", 30)).toBe("2026-12-03");
+    expect(invoiceValidUntil("2026-12-15", 30)).toBe("2027-01-14");
+    expect(invoiceValidUntil("2028-02-10", 30)).toBe("2028-03-11");
+    expect(invoiceValidUntil("2026-11-03", 7)).toBe("2026-11-10");
   });
 
   it("says so in standard wording", () => {
-    expect(validityNote("2026-11-08")).toBe(
+    expect(validityNote("2026-11-08", 30)).toBe(
       "This invoice is valid for 30 days from the invoice date.\nValid until: 8 December 2026."
     );
+    expect(validityNote("2026-11-08", 1)).toContain("valid for 1 day from");
   });
 
   it("takes a real date typed on the form", () => {
@@ -453,19 +457,44 @@ describe("the invoice date and how long it's valid", () => {
     expect(chooseIssuedOn("2026-02-30")).toHaveProperty("error");
     expect(chooseIssuedOn("8 November")).toHaveProperty("error");
   });
+
+  it("takes a whole number of days, or none", () => {
+    expect(chooseValidDays("")).toEqual({ validDays: 0 });
+    expect(chooseValidDays(" 30 ")).toEqual({ validDays: 30 });
+    expect(chooseValidDays("0")).toHaveProperty("error");
+    expect(chooseValidDays("7.5")).toHaveProperty("error");
+    expect(chooseValidDays("-3")).toHaveProperty("error");
+    expect(chooseValidDays("thirty")).toHaveProperty("error");
+  });
+
+  it("makes a PDF with and without the note", async () => {
+    for (const validDays of [0, 30]) {
+      const pdf = await invoicePdf(
+        { ...tab.invoices[1], validDays },
+        { signature: { name: "Lian Malan", title: "Treasurer" } }
+      );
+      expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe("%PDF-");
+    }
+  });
 });
 
 describe("contact names", () => {
   it("are read from their column, and blank without it", () => {
-    const headers = [...HEADERS, INVOICE_COLUMNS.contactName];
-    const rows = ROWS.map((row) => [...row, "Jane Smith"]);
+    const headers = [
+      ...HEADERS,
+      INVOICE_COLUMNS.contactName,
+      INVOICE_COLUMNS.validDays,
+    ];
+    const rows = ROWS.map((row) => [...row, "Jane Smith", 30]);
     const withContact = parseInvoicesTab([headers, ...rows]);
     expect(withContact.invoices[0].contactName).toBe("Jane Smith");
+    expect(withContact.invoices[0].validDays).toBe(30);
     expect(invoiceValues(withContact.invoices[0], "").contactName).toBe(
       "Jane Smith"
     );
 
     expect(tab.columns.contactName).toBe(-1);
     expect(tab.invoices[0].contactName).toBe("");
+    expect(tab.invoices[0].validDays).toBe(0);
   });
 });

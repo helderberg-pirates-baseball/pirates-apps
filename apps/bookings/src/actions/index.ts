@@ -38,6 +38,7 @@ import {
   linesFromForm,
   chooseInvoiceNumber,
   chooseIssuedOn,
+  chooseValidDays,
   nextInvoiceNumber,
   parseAmount,
   paymentStatusWhenSent,
@@ -399,6 +400,7 @@ export const server = {
         .max(200),
       contactName: z.string().max(200).optional(),
       issuedOn: z.string().max(20).optional(),
+      validDays: z.string().max(10).optional(),
       address: z.string().max(500).optional(),
       regNumber: z.string().max(100).optional(),
       vatNumber: z.string().max(100).optional(),
@@ -443,11 +445,16 @@ export const server = {
       if ("error" in date) {
         throw new ActionError({ code: "BAD_REQUEST", message: date.error });
       }
+      const valid = chooseValidDays(input.validDays ?? "");
+      if ("error" in valid) {
+        throw new ActionError({ code: "BAD_REQUEST", message: valid.error });
+      }
 
       const details = {
         customer: input.customer,
         contactName: input.contactName?.trim() ?? "",
         issuedOn: date.issuedOn,
+        validDays: valid.validDays,
         // Browsers send a text box's line breaks as \r\n; keep plain \n
         address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
         regNumber: input.regNumber?.trim() ?? "",
@@ -602,6 +609,7 @@ export const server = {
         .max(200),
       contactName: z.string().max(200).optional(),
       issuedOn: z.string().max(20).optional(),
+      validDays: z.string().max(10).optional(),
       address: z.string().max(500).optional(),
       regNumber: z.string().max(100).optional(),
       vatNumber: z.string().max(100).optional(),
@@ -652,11 +660,16 @@ export const server = {
       if ("error" in date) {
         throw new ActionError({ code: "BAD_REQUEST", message: date.error });
       }
+      const valid = chooseValidDays(input.validDays ?? "");
+      if ("error" in valid) {
+        throw new ActionError({ code: "BAD_REQUEST", message: valid.error });
+      }
 
       const details = {
         customer: input.customer,
         contactName: input.contactName?.trim() ?? "",
         issuedOn: date.issuedOn,
+        validDays: valid.validDays,
         // Browsers send a text box's line breaks as \r\n; keep plain \n
         address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
         regNumber: input.regNumber?.trim() ?? "",

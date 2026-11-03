@@ -46,6 +46,8 @@ export interface ClubInvoiceFormValues {
   number: string;
   /** "2026-10-13" */
   issuedOn: string;
+  /** Empty when the invoice doesn't say how long it's valid */
+  validDays: string;
   customer: string;
   contactName: string;
   address: string;
@@ -73,6 +75,7 @@ export function clubFormValuesFor(
   return {
     number,
     issuedOn,
+    validDays: details?.validDays ? String(details.validDays) : "",
     customer: details?.customer ?? "",
     contactName: details?.contactName ?? "",
     address: details?.address ?? "",
@@ -95,6 +98,7 @@ export function clubFormValuesFromSubmission(
   return {
     number: field("number"),
     issuedOn: field("issuedOn"),
+    validDays: field("validDays"),
     customer: field("customer"),
     contactName: field("contactName"),
     address: field("address"),

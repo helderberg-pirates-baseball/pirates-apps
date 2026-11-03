@@ -7,6 +7,7 @@ import {
   DAMAGE_DEPOSIT,
   MEMBER_RENTAL_PRICE,
   isValidInvoiceNumber,
+  MAX_VALID_DAYS,
   parseAmount,
   RENTAL_PRICE,
   type Invoice,
@@ -95,8 +96,25 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         required
       />
       <p class="hint">
-        The invoice is valid for 30 days from this date. Move it to the day
-        you'll send the invoice if that's later.
+        Move it to the day you'll send the invoice if that's later. Any validity
+        period counts from it.
+      </p>
+    </div>
+    <div class="field">
+      <label for="validDays">Valid for (days, optional)</label>
+      <input
+        id="validDays"
+        name="validDays"
+        type="number"
+        inputmode="numeric"
+        min="1"
+        max={MAX_VALID_DAYS}
+        step="1"
+        value={values.validDays}
+      />
+      <p class="hint">
+        Adds a note that the invoice is only valid for this many days from the
+        invoice date, with the last day. Leave it empty to leave the note off.
       </p>
     </div>
   </section>
