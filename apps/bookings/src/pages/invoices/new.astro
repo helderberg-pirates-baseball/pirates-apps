@@ -37,7 +37,7 @@ const suggestedNumber = nextInvoiceNumber(
 // After a failed save, show what was typed rather than starting over
 const values = saveError
   ? clubFormValuesFromSubmission(await Astro.request.formData())
-  : clubFormValuesFor(undefined, suggestedNumber);
+  : clubFormValuesFor(undefined, suggestedNumber, todayInSouthAfrica());
 ---
 
 <AppLayout title="New invoice" user={user}>

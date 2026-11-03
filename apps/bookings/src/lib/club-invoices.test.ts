@@ -165,17 +165,29 @@ describe("chooseClubInvoiceNumber", () => {
 
 describe("the form values", () => {
   it("opens empty for a new invoice", () => {
-    expect(clubFormValuesFor(undefined, "INV-20261102-002")).toMatchObject({
+    expect(
+      clubFormValuesFor(undefined, "INV-20261102-002", "2026-11-02")
+    ).toMatchObject({
       number: "INV-20261102-002",
+      issuedOn: "2026-11-02",
       customer: "",
+      contactName: "",
       description: [],
       amount: [],
     });
   });
 
   it("opens with a saved invoice's lines as plain numbers", () => {
-    expect(clubFormValuesFor(draft, draft.number)).toMatchObject({
+    expect(
+      clubFormValuesFor(
+        { ...draft, contactName: "Jane Smith" },
+        draft.number,
+        "2026-11-05"
+      )
+    ).toMatchObject({
+      issuedOn: "2026-11-05",
       customer: "Acme (Pty) Ltd",
+      contactName: "Jane Smith",
       regNumber: "2020/123456/07",
       description: ["Shirt sponsorship 2027", "Banner"],
       amount: ["5000", "750.50"],
@@ -185,12 +197,16 @@ describe("the form values", () => {
   it("reads back what was typed", () => {
     const form = new FormData();
     form.set("customer", "Acme");
+    form.set("contactName", "Jane Smith");
+    form.set("issuedOn", "2026-11-07");
     form.append("description", "Fee");
     form.append("description", "");
     form.append("amount", "10");
     form.append("amount", "");
     expect(clubFormValuesFromSubmission(form)).toMatchObject({
       customer: "Acme",
+      contactName: "Jane Smith",
+      issuedOn: "2026-11-07",
       description: ["Fee", ""],
       amount: ["10", ""],
     });

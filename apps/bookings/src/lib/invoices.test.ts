@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseBookings, type Booking } from "./bookings";
 import { RESPONSE_HEADERS, RESPONSE_ROWS } from "./bookings.fixtures";
-import { invoicePdf } from "./invoice-pdf";
+import { invoicePdf, validityNote } from "./invoice-pdf";
 import {
   bookingWhen,
   currentInvoice,
@@ -17,6 +17,9 @@ import {
   linesFromForm,
   newInvoiceDetails,
   chooseInvoiceNumber,
+  chooseIssuedOn,
+  INVOICE_COLUMNS,
+  invoiceValidUntil,
   formValuesFor,
   formValuesFromSubmission,
   isValidInvoiceNumber,
@@ -184,10 +187,13 @@ describe("invoice form values", () => {
         email: "",
         lines: [...LINES, { kind: "extra", description: "Bar", amount: 250.5 }],
       },
-      "INV-20261013-001"
+      "INV-20261013-001",
+      "2026-10-18"
     );
     expect(values).toMatchObject({
       number: "INV-20261013-001",
+      issuedOn: "2026-10-18",
+      contactName: "",
       rentalAmount: "3500",
       depositAmount: "500",
       extraDescription: ["Bar"],
@@ -355,6 +361,18 @@ describe("invoicePdf", () => {
     expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe("%PDF-");
   });
 
+  it("addresses a business's contact person", async () => {
+    const pdf = await invoicePdf(
+      {
+        ...tab.invoices[1],
+        customer: "Acme (Pty) Ltd",
+        contactName: "Jane Smith",
+      },
+      { signature: { name: "Lian Malan", title: "Treasurer" } }
+    );
+    expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe("%PDF-");
+  });
+
   it("signs with a long name, or none at all", async () => {
     for (const name of ["Bartholomew Alexander Montgomery-Smythe III", ""]) {
       const pdf = await invoicePdf(tab.invoices[1], {
@@ -413,5 +431,41 @@ describe("signatures", () => {
         "Jo Smit"
       )
     ).toEqual({ name: "Lian Malan", title: "Chairperson" });
+  });
+});
+
+describe("the invoice date and how long it's valid", () => {
+  it("is valid for 30 days from the invoice date", () => {
+    expect(invoiceValidUntil("2026-11-03")).toBe("2026-12-03");
+    expect(invoiceValidUntil("2026-12-15")).toBe("2027-01-14");
+    expect(invoiceValidUntil("2028-02-10")).toBe("2028-03-11");
+  });
+
+  it("says so in standard wording", () => {
+    expect(validityNote("2026-11-08")).toBe(
+      "This invoice is valid for 30 days from the invoice date.\nValid until: 8 December 2026."
+    );
+  });
+
+  it("takes a real date typed on the form", () => {
+    expect(chooseIssuedOn(" 2026-11-08 ")).toEqual({ issuedOn: "2026-11-08" });
+    expect(chooseIssuedOn("")).toHaveProperty("error");
+    expect(chooseIssuedOn("2026-02-30")).toHaveProperty("error");
+    expect(chooseIssuedOn("8 November")).toHaveProperty("error");
+  });
+});
+
+describe("contact names", () => {
+  it("are read from their column, and blank without it", () => {
+    const headers = [...HEADERS, INVOICE_COLUMNS.contactName];
+    const rows = ROWS.map((row) => [...row, "Jane Smith"]);
+    const withContact = parseInvoicesTab([headers, ...rows]);
+    expect(withContact.invoices[0].contactName).toBe("Jane Smith");
+    expect(invoiceValues(withContact.invoices[0], "").contactName).toBe(
+      "Jane Smith"
+    );
+
+    expect(tab.columns.contactName).toBe(-1);
+    expect(tab.invoices[0].contactName).toBe("");
   });
 });

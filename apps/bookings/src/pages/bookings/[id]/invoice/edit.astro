@@ -58,7 +58,13 @@ const startingNumber =
 // action reads a copy of the request, so the form is still there to read.
 const values = saveError
   ? formValuesFromSubmission(await Astro.request.formData())
-  : formValuesFor(invoice ?? newInvoiceDetails(booking), startingNumber);
+  : formValuesFor(
+      invoice ?? newInvoiceDetails(booking),
+      startingNumber,
+      // A draft keeps its date; a new invoice, or one replacing a sent one,
+      // starts on today
+      (invoice?.status === "Draft" && invoice.issuedOn) || todayInSouthAfrica()
+    );
 ---
 
 <AppLayout

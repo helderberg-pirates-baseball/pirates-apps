@@ -37,6 +37,7 @@ import {
   INVOICES_TAB,
   linesFromForm,
   chooseInvoiceNumber,
+  chooseIssuedOn,
   nextInvoiceNumber,
   parseAmount,
   paymentStatusWhenSent,
@@ -396,6 +397,8 @@ export const server = {
         .trim()
         .min(1, "Fill in who the invoice is for.")
         .max(200),
+      contactName: z.string().max(200).optional(),
+      issuedOn: z.string().max(20).optional(),
       address: z.string().max(500).optional(),
       regNumber: z.string().max(100).optional(),
       vatNumber: z.string().max(100).optional(),
@@ -436,8 +439,15 @@ export const server = {
         });
       }
 
+      const date = chooseIssuedOn(input.issuedOn ?? "");
+      if ("error" in date) {
+        throw new ActionError({ code: "BAD_REQUEST", message: date.error });
+      }
+
       const details = {
         customer: input.customer,
+        contactName: input.contactName?.trim() ?? "",
+        issuedOn: date.issuedOn,
         // Browsers send a text box's line breaks as \r\n; keep plain \n
         address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
         regNumber: input.regNumber?.trim() ?? "",
@@ -488,7 +498,6 @@ export const server = {
             ...details,
             number,
             bookingKey: booking.timestampKey,
-            issuedOn: todayInSouthAfrica(),
             status: "Draft",
           },
           timestampCell(booking)
@@ -591,6 +600,8 @@ export const server = {
         .trim()
         .min(1, "Fill in who the invoice is for.")
         .max(200),
+      contactName: z.string().max(200).optional(),
+      issuedOn: z.string().max(20).optional(),
       address: z.string().max(500).optional(),
       regNumber: z.string().max(100).optional(),
       vatNumber: z.string().max(100).optional(),
@@ -637,8 +648,15 @@ export const server = {
       }
       const { number } = chosen;
 
+      const date = chooseIssuedOn(input.issuedOn ?? "");
+      if ("error" in date) {
+        throw new ActionError({ code: "BAD_REQUEST", message: date.error });
+      }
+
       const details = {
         customer: input.customer,
+        contactName: input.contactName?.trim() ?? "",
+        issuedOn: date.issuedOn,
         // Browsers send a text box's line breaks as \r\n; keep plain \n
         address: input.address?.replace(/\r\n?/g, "\n").trim() ?? "",
         regNumber: input.regNumber?.trim() ?? "",
@@ -664,7 +682,6 @@ export const server = {
             ...details,
             number,
             bookingKey: "",
-            issuedOn: today,
             status: "Draft",
           },
           ""
