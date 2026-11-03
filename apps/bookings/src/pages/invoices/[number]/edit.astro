@@ -45,7 +45,12 @@ const suggestedNumber =
 // After a failed save, show what was typed rather than starting over
 const values = saveError
   ? clubFormValuesFromSubmission(await Astro.request.formData())
-  : clubFormValuesFor(invoice, suggestedNumber);
+  : clubFormValuesFor(
+      invoice,
+      suggestedNumber,
+      // A draft keeps its date; one replacing a sent invoice starts on today
+      (invoice.status === "Draft" && invoice.issuedOn) || todayInSouthAfrica()
+    );
 ---
 
 <AppLayout title={`Edit ${invoice.number}`} user={user}>

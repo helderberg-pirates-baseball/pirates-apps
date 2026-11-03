@@ -44,7 +44,10 @@ export function findClubInvoice(
 /** Everything on the club invoice form, as text */
 export interface ClubInvoiceFormValues {
   number: string;
+  /** "2026-10-13" */
+  issuedOn: string;
   customer: string;
+  contactName: string;
   address: string;
   regNumber: string;
   vatNumber: string;
@@ -64,11 +67,14 @@ function amountText(amount: number): string {
 /** The form's values for an invoice, or an empty form for a new one */
 export function clubFormValuesFor(
   details: InvoiceDetails | undefined,
-  number: string
+  number: string,
+  issuedOn: string
 ): ClubInvoiceFormValues {
   return {
     number,
+    issuedOn,
     customer: details?.customer ?? "",
+    contactName: details?.contactName ?? "",
     address: details?.address ?? "",
     regNumber: details?.regNumber ?? "",
     vatNumber: details?.vatNumber ?? "",
@@ -88,7 +94,9 @@ export function clubFormValuesFromSubmission(
   const all = (name: string) => form.getAll(name).map(String);
   return {
     number: field("number"),
+    issuedOn: field("issuedOn"),
     customer: field("customer"),
+    contactName: field("contactName"),
     address: field("address"),
     regNumber: field("regNumber"),
     vatNumber: field("vatNumber"),

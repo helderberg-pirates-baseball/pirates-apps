@@ -12,7 +12,13 @@ import logoDataUrl from "../assets/invoice-logo.jpg?inline";
 // in signature-font-LICENSE.txt beside it)
 import signatureFontDataUrl from "../assets/signature-font.ttf?inline";
 import { dayMonthYear } from "./dates";
-import { formatRand, invoiceTotal, type Invoice } from "./invoices";
+import {
+  formatRand,
+  INVOICE_VALID_DAYS,
+  invoiceTotal,
+  invoiceValidUntil,
+  type Invoice,
+} from "./invoices";
 
 const CLUB_NAME = "Helderberg Pirates Baseball Club";
 const CLUB_ADDRESS = [
@@ -72,6 +78,14 @@ const BOTTOM = PAGE_HEIGHT - 50;
 const SIGNATURE_LINE_Y = BOTTOM - 30;
 // The handwriting reaches about this far above the line
 const SIGNATURE_TOP = SIGNATURE_LINE_Y - 40;
+
+// The note on how long the invoice is valid, in the bottom left corner above
+// "Thank you", as wide as the space left of the signature
+const VALIDITY_SIZE = 9.5;
+const VALIDITY_LINE_HEIGHT = 12;
+const VALIDITY_WIDTH = SIGNATURE_LEFT - LEFT - 20;
+// Where its last line ends, a gap above "Thank you"
+const VALIDITY_BOTTOM = SIGNATURE_LINE_Y - 6;
 
 // How far the bank details (left) and the 50% note (right) reach below the
 // lines
@@ -198,6 +212,8 @@ function drawCustomer(page: PDFPage, fonts: Fonts, invoice: Invoice): number {
   // Optional fields are left off when they're empty
   const rows: [string, string][] = [
     ["Customer", invoice.customer],
+    // The person to address, when the customer is a business
+    ["Attention", invoice.contactName ?? ""],
     ["Address", invoice.address],
     ["Reg No.", invoice.regNumber],
     ["VAT No.", invoice.vatNumber],
@@ -386,6 +402,50 @@ function drawSignature(
   }
 }
 
+/**
+ * "This invoice is valid for 30 days from the invoice date." and, on its
+ * own line, "Valid until: 3 December 2026."
+ */
+export function validityNote(issuedOn: string): string {
+  return [
+    `This invoice is valid for ${INVOICE_VALID_DAYS} days from the invoice date.`,
+    `Valid until: ${dayMonthYear(invoiceValidUntil(issuedOn))}.`,
+  ].join("\n");
+}
+
+/** The validity note's lines, or none when the invoice has no date */
+function validityLines(fonts: Fonts, invoice: Invoice): string[] {
+  return invoice.issuedOn
+    ? wrap(
+        validityNote(invoice.issuedOn),
+        fonts.regular,
+        VALIDITY_SIZE,
+        VALIDITY_WIDTH
+      )
+    : [];
+}
+
+/** Where the validity note starts, so it ends just above "Thank you" */
+function validityTop(lines: string[]): number {
+  return VALIDITY_BOTTOM - lines.length * VALIDITY_LINE_HEIGHT;
+}
+
+/** How long the invoice is valid, just above "Thank you" */
+function drawValidity(page: PDFPage, fonts: Fonts, lines: string[]) {
+  const top = validityTop(lines);
+  lines.forEach((line, index) => {
+    write(
+      page,
+      line,
+      LEFT,
+      top + index * VALIDITY_LINE_HEIGHT,
+      fonts.regular,
+      VALIDITY_SIZE,
+      GREY
+    );
+  });
+}
+
 /** Thanks in the bottom left corner, level with the name and title under the signature */
 function drawThanks(page: PDFPage, fonts: Fonts) {
   write(page, "Thank you", LEFT, SIGNATURE_LINE_Y + 5, fonts.bold, 11);
@@ -433,10 +493,11 @@ export async function invoicePdf(
   // A long invoice can leave too little room above the signature for the
   // bank details, so they go on a second page, which is then the one signed
   let lastPage = page;
-  // The bank details must end above "Thank you", and the 50% note above the
-  // signature
+  // The bank details must end above the validity note (which sits above
+  // "Thank you"), and the 50% note above the signature
+  const validity = validityLines(fonts, invoice);
   const fits =
-    linesEnd + BANK_DETAILS_HEIGHT < SIGNATURE_LINE_Y - 10 &&
+    linesEnd + BANK_DETAILS_HEIGHT < validityTop(validity) - 10 &&
     (!showDeposit || linesEnd + DEPOSIT_NOTE_HEIGHT < SIGNATURE_TOP - 5);
   if (!fits) {
     lastPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -445,6 +506,7 @@ export async function invoicePdf(
     drawFooter(page, fonts, invoice, linesEnd, showDeposit);
   }
   drawSignature(lastPage, fonts, signature);
+  drawValidity(lastPage, fonts, validity);
   drawThanks(lastPage, fonts);
 
   return pdf.save();

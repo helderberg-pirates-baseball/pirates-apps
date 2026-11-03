@@ -31,7 +31,13 @@ export interface InvoiceLine {
 
 /** What someone fills in on the invoice form */
 export interface InvoiceDetails {
+  /** A person, or a business's name */
   customer: string;
+  /**
+   * Who to address at a business, printed under its name. Blank for a
+   * person, or on invoices saved before contact names.
+   */
+  contactName?: string;
   address: string;
   /** The company's registration number, for companies */
   regNumber: string;
@@ -85,6 +91,8 @@ export const INVOICE_COLUMNS = {
   signerTitle: "App_SignerTitle",
   // Not the same as the registration number: only VAT-registered clients have one
   vatNumber: "App_VatNumber",
+  // The person to address when the customer is a business
+  contactName: "App_ContactName",
 } as const;
 
 export type InvoiceColumn = keyof typeof INVOICE_COLUMNS;
@@ -94,6 +102,7 @@ const OPTIONAL_INVOICE_COLUMNS: InvoiceColumn[] = [
   "signedBy",
   "signerTitle",
   "vatNumber",
+  "contactName",
 ];
 
 export interface InvoicesTab {
@@ -150,6 +159,8 @@ export function parseInvoicesTab(rows: unknown[][]): InvoicesTab {
       issuedOn: typeof issuedOn === "number" ? dateFromSerial(issuedOn) : "",
       status: parseStatus(row[columns.status]),
       customer: text(row[columns.customer]),
+      contactName:
+        columns.contactName === -1 ? "" : text(row[columns.contactName]),
       address: text(row[columns.address]),
       regNumber: text(row[columns.regNumber]),
       vatNumber: columns.vatNumber === -1 ? "" : text(row[columns.vatNumber]),
@@ -210,6 +221,22 @@ export function nextInvoiceNumber(
   return `${prefix}${String(next).padStart(3, "0")}`;
 }
 
+/** True for a real date written as "2026-10-13" */
+export function isValidDate(date: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) {
+    return false;
+  }
+  const [year, month, day] = match.slice(1).map(Number);
+  // A date like 30 February rolls over into March, so it won't match
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
 /**
  * Typed-in numbers keep to the app's own format, "INV-20261013-001": a real
  * date as yyyyMMdd, then three digits. The date can be any day, past or
@@ -217,17 +244,7 @@ export function nextInvoiceNumber(
  */
 export function isValidInvoiceNumber(number: string): boolean {
   const match = /^INV-(\d{4})(\d{2})(\d{2})-\d{3}$/.exec(number);
-  if (!match) {
-    return false;
-  }
-  const [year, month, day] = match.slice(1).map(Number);
-  // A date like 30 February rolls over into March, so it won't match
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+  return match !== null && isValidDate(match.slice(1).join("-"));
 }
 
 /**
@@ -259,6 +276,35 @@ export function chooseInvoiceNumber(
     return { error: `There's already an invoice ${number}.` };
   }
   return { number };
+}
+
+/**
+ * The invoice date as typed on the form, or what's wrong with it. It's
+ * usually today, but can be moved to the day the invoice is actually sent,
+ * since how long the invoice is valid counts from it.
+ */
+export function chooseIssuedOn(
+  typed: string
+): { issuedOn: string } | { error: string } {
+  const issuedOn = typed.trim();
+  if (!issuedOn) {
+    return { error: "Fill in the invoice date." };
+  }
+  if (!isValidDate(issuedOn)) {
+    return { error: `"${issuedOn}" isn't a date.` };
+  }
+  return { issuedOn };
+}
+
+/** How many days an invoice is valid for, counted from its date */
+export const INVOICE_VALID_DAYS = 30;
+
+/** The last day the invoice is valid: 30 days after its date */
+export function invoiceValidUntil(issuedOn: string): string {
+  const [year, month, day] = issuedOn.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + INVOICE_VALID_DAYS))
+    .toISOString()
+    .slice(0, 10);
 }
 
 export function invoiceTotal(lines: InvoiceLine[]): number {
@@ -308,6 +354,7 @@ export function rentalDescription(booking: Booking): string {
 export function newInvoiceDetails(booking: Booking): InvoiceDetails {
   return {
     customer: booking.name,
+    contactName: "",
     address: "",
     regNumber: "",
     vatNumber: "",
@@ -358,7 +405,10 @@ export interface InvoiceLinesForm {
  */
 export interface InvoiceFormValues extends InvoiceLinesForm {
   number: string;
+  /** "2026-10-13" */
+  issuedOn: string;
   customer: string;
+  contactName: string;
   address: string;
   regNumber: string;
   vatNumber: string;
@@ -375,13 +425,16 @@ function amountText(amount: number): string {
 /** The form's values for an invoice's details, with the full price when there's no rental line */
 export function formValuesFor(
   details: InvoiceDetails,
-  number: string
+  number: string,
+  issuedOn: string
 ): InvoiceFormValues {
   const rental = details.lines.find((line) => line.kind === "rental");
   const extras = details.lines.filter((line) => line.kind === "extra");
   return {
     number,
+    issuedOn,
     customer: details.customer,
+    contactName: details.contactName ?? "",
     address: details.address,
     regNumber: details.regNumber,
     vatNumber: details.vatNumber,
@@ -402,7 +455,9 @@ export function formValuesFromSubmission(form: FormData): InvoiceFormValues {
   const all = (name: string) => form.getAll(name).map(String);
   return {
     number: field("number"),
+    issuedOn: field("issuedOn"),
     customer: field("customer"),
+    contactName: field("contactName"),
     address: field("address"),
     regNumber: field("regNumber"),
     vatNumber: field("vatNumber"),
@@ -502,6 +557,7 @@ export function invoiceValues(
     issuedOn: serialFromDate(invoice.issuedOn),
     status: invoice.status,
     customer: invoice.customer,
+    contactName: invoice.contactName ?? "",
     address: invoice.address,
     regNumber: invoice.regNumber,
     vatNumber: invoice.vatNumber,

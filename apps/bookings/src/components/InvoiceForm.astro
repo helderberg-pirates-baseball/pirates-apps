@@ -50,7 +50,7 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
   <input type="hidden" name="shownNumber" value={invoice?.number ?? ""} />
 
   <section class="panel">
-    <h2>Invoice number</h2>
+    <h2>Invoice number and date</h2>
     <input type="hidden" name="suggestedNumber" value={suggestedNumber} />
     <div class="field">
       <label for="number">Number</label>
@@ -85,6 +85,20 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
           : "Like INV-20261013-001: the date as yyyyMMdd, then three digits. Change it to match an invoice already sent outside the app."}
       </p>
     </div>
+    <div class="field">
+      <label for="issuedOn">Invoice date</label>
+      <input
+        id="issuedOn"
+        name="issuedOn"
+        type="date"
+        value={values.issuedOn}
+        required
+      />
+      <p class="hint">
+        The invoice is valid for 30 days from this date. Move it to the day
+        you'll send the invoice if that's later.
+      </p>
+    </div>
   </section>
 
   <section class="panel">
@@ -100,7 +114,22 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         maxlength="200"
         autocomplete="off"
       />
-      <p class="hint">A person or a company.</p>
+      <p class="hint">A person, or the business's name.</p>
+    </div>
+    <div class="field">
+      <label for="contactName">Contact name (optional)</label>
+      <input
+        id="contactName"
+        name="contactName"
+        type="text"
+        value={values.contactName}
+        maxlength="200"
+        autocomplete="off"
+      />
+      <p class="hint">
+        When the invoice is for a business: the person to address it to. Leave
+        it empty for a person.
+      </p>
     </div>
     <div class="field">
       <label for="address">Address (optional)</label>
