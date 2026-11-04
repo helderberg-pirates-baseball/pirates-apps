@@ -204,40 +204,44 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         <div class="line" data-line>
           <div class="field">
             <label>
-              Description
-              <input
+              <span>Description</span>
+              {/* Wraps and grows as it's typed, but stays one line */}
+              <textarea
                 name="description"
-                type="text"
-                value={line.description}
+                rows="1"
                 maxlength="300"
                 autocomplete="off"
+                data-grow
+                set:text={line.description}
               />
             </label>
           </div>
-          <div class="field amount">
-            <label>
-              Amount (R)
-              <input
-                name="amount"
-                type="text"
-                inputmode="decimal"
-                pattern={AMOUNT_PATTERN}
-                value={line.amount}
-                maxlength="20"
-                autocomplete="off"
-                data-amount
-              />
-            </label>
+          <div class="line-bottom">
+            <div class="field amount">
+              <label>
+                <span>Amount (R)</span>
+                <input
+                  name="amount"
+                  type="text"
+                  inputmode="decimal"
+                  pattern={AMOUNT_PATTERN}
+                  value={line.amount}
+                  maxlength="20"
+                  autocomplete="off"
+                  data-amount
+                />
+              </label>
+            </div>
+            <button
+              class="remove"
+              type="button"
+              aria-label="Remove this line"
+              data-remove-line
+              hidden
+            >
+              <Icon name="trash" size={18} />
+            </button>
           </div>
-          <button
-            class="remove"
-            type="button"
-            aria-label="Remove this line"
-            data-remove-line
-            hidden
-          >
-            <Icon name="trash" size={18} />
-          </button>
         </div>
       ))}
     </div>
@@ -343,12 +347,15 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
     addLine.addEventListener("click", () => {
       const template = lines.querySelector<HTMLElement>("[data-line]")!;
       const line = template.cloneNode(true) as HTMLElement;
-      for (const input of line.querySelectorAll("input")) {
+      for (const input of line.querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement
+      >("input, textarea")) {
         input.value = "";
+        input.style.height = "";
       }
       lines.append(line);
       updateLineButtons();
-      line.querySelector("input")?.focus();
+      line.querySelector("textarea")?.focus();
     });
 
     lines.addEventListener("click", (event) => {
@@ -357,8 +364,11 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
       const line = remove.closest<HTMLElement>("[data-line]")!;
       // Keep one line to type into, emptied
       if (lines.querySelectorAll("[data-line]").length === 1) {
-        for (const input of line.querySelectorAll("input")) {
+        for (const input of line.querySelectorAll<
+          HTMLInputElement | HTMLTextAreaElement
+        >("input, textarea")) {
           input.value = "";
+          input.style.height = "";
         }
       } else {
         line.remove();
@@ -379,16 +389,32 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
     display: grid;
     gap: 1rem;
   }
+  /* On phones a line stacks: the description on its own, then the amount
+     and Remove. Wider screens fit it on one row. The labels wrap their
+     fields, so a copied line needs no new IDs. */
   .line {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 7rem auto;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: var(--radius-small);
+    background: var(--color-surface-sunken);
+  }
+  .line-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
     gap: 0.5rem;
   }
-  /* The label wraps its field, so a copied line needs no new IDs */
-  .line label {
-    display: grid;
-    gap: 0.375rem;
+  @media (min-width: 40rem) {
+    .line {
+      grid-template-columns: minmax(0, 1fr) 9rem auto;
+      align-items: end;
+      padding: 0;
+      background: none;
+    }
+    .line-bottom {
+      display: contents;
+    }
   }
   .remove {
     display: grid;
