@@ -27,13 +27,7 @@ const replaced = all.filter((invoice) => invoice.status === "Replaced");
 
 <AppLayout title="Invoices" user={user}>
   <header class="heading">
-    <div>
-      <h1>Invoices</h1>
-      <p class="lede">
-        For club business that isn't a booking. Bookings' invoices are made from
-        the booking.
-      </p>
-    </div>
+    <h1>Invoices</h1>
     <a class="button button-primary" href="/invoices/new">
       <Icon name="file" size={18} />
       New invoice
@@ -99,7 +93,7 @@ const replaced = all.filter((invoice) => invoice.status === "Replaced");
 <style>
   .heading {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
     margin-bottom: 1rem;
@@ -110,10 +104,6 @@ const replaced = all.filter((invoice) => invoice.status === "Replaced");
   h1 {
     margin: 0;
     font-size: 1.625rem;
-  }
-  .lede {
-    margin: 0.25rem 0 0;
-    color: var(--color-muted);
   }
 
   .items {
