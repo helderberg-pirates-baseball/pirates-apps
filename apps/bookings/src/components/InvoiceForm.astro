@@ -14,6 +14,7 @@ import {
   type InvoiceFormValues,
 } from "../lib/invoices";
 import type { TrackedBooking } from "../lib/tracking";
+import Help from "./Help.astro";
 import Icon from "./Icon.astro";
 
 interface Props {
@@ -30,6 +31,11 @@ interface Props {
 
 const { booking, invoice, values, suggestedNumber, canSave } = Astro.props;
 const handTypedNumber = booking.tracking.invoiceNumber;
+// A new invoice for a booking whose invoice was sent outside the app
+const sentOutsideApp =
+  !invoice && !!handTypedNumber && isValidInvoiceNumber(handTypedNumber);
+const unusableNumber =
+  !invoice && !!handTypedNumber && !isValidInvoiceNumber(handTypedNumber);
 // The form always ends with a blank extra line, so blank ones sent with a
 // failed save are left out
 const extras = values.extraDescription
@@ -54,7 +60,14 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
     <h2>Invoice number and date</h2>
     <input type="hidden" name="suggestedNumber" value={suggestedNumber} />
     <div class="field">
-      <label for="number">Number</label>
+      <Help about="Number">
+        <label for="number">Number</label>
+        <Fragment slot="help">
+          {sentOutsideApp
+            ? `The number of the invoice sent outside the app. Use the refresh button for a new one (${suggestedNumber}).`
+            : "Like INV-20261013-001: the date as yyyyMMdd, then three digits. Change it to match an invoice already sent outside the app."}
+        </Fragment>
+      </Help>
       <div class="number-row">
         <input
           id="number"
@@ -78,16 +91,22 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
           <Icon name="refresh" size={18} />
         </button>
       </div>
-      <p class="hint">
-        {!invoice && handTypedNumber
-          ? isValidInvoiceNumber(handTypedNumber)
-            ? `The number of the invoice sent outside the app. Use the refresh button for a new one (${suggestedNumber}).`
-            : `The booking says ${handTypedNumber} was sent, but it isn't like INV-20261013-001, so it can't be used.`
-          : "Like INV-20261013-001: the date as yyyyMMdd, then three digits. Change it to match an invoice already sent outside the app."}
-      </p>
+      {/* A problem with the booking's number, so it stays in view */}
+      {unusableNumber && (
+        <p class="hint">
+          The booking says {handTypedNumber} was sent, but it isn't like
+          INV-20261013-001, so it can't be used.
+        </p>
+      )}
     </div>
     <div class="field">
-      <label for="issuedOn">Invoice date</label>
+      <Help about="Invoice date">
+        <label for="issuedOn">Invoice date</label>
+        <Fragment slot="help">
+          Move it to the day you'll send the invoice if that's later. Any
+          validity period counts from it.
+        </Fragment>
+      </Help>
       <input
         id="issuedOn"
         name="issuedOn"
@@ -95,13 +114,15 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         value={values.issuedOn}
         required
       />
-      <p class="hint">
-        Move it to the day you'll send the invoice if that's later. Any validity
-        period counts from it.
-      </p>
     </div>
     <div class="field">
-      <label for="validDays">Valid for (days, optional)</label>
+      <Help about="Valid for">
+        <label for="validDays">Valid for (days, optional)</label>
+        <Fragment slot="help">
+          Adds a note that the invoice is only valid for this many days from the
+          invoice date, with the last day. Leave it empty to leave the note off.
+        </Fragment>
+      </Help>
       <input
         id="validDays"
         name="validDays"
@@ -112,17 +133,16 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         step="1"
         value={values.validDays}
       />
-      <p class="hint">
-        Adds a note that the invoice is only valid for this many days from the
-        invoice date, with the last day. Leave it empty to leave the note off.
-      </p>
     </div>
   </section>
 
   <section class="panel">
     <h2>Customer</h2>
     <div class="field">
-      <label for="customer">Name</label>
+      <Help about="Name">
+        <label for="customer">Name</label>
+        <Fragment slot="help">A person, or the business's name.</Fragment>
+      </Help>
       <input
         id="customer"
         name="customer"
@@ -132,10 +152,15 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         maxlength="200"
         autocomplete="off"
       />
-      <p class="hint">A person, or the business's name.</p>
     </div>
     <div class="field">
-      <label for="contactName">Contact name (optional)</label>
+      <Help about="Contact name">
+        <label for="contactName">Contact name (optional)</label>
+        <Fragment slot="help">
+          When the invoice is for a business: the person to address it to. Leave
+          it empty for a person.
+        </Fragment>
+      </Help>
       <input
         id="contactName"
         name="contactName"
@@ -144,10 +169,6 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         maxlength="200"
         autocomplete="off"
       />
-      <p class="hint">
-        When the invoice is for a business: the person to address it to. Leave
-        it empty for a person.
-      </p>
     </div>
     <div class="field">
       <label for="address">Address (optional)</label>
@@ -171,7 +192,12 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
       />
     </div>
     <div class="field">
-      <label for="vatNumber">VAT number (optional)</label>
+      <Help about="VAT number">
+        <label for="vatNumber">VAT number (optional)</label>
+        <Fragment slot="help">
+          Only printed on the invoice when filled in.
+        </Fragment>
+      </Help>
       <input
         id="vatNumber"
         name="vatNumber"
@@ -180,7 +206,6 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         maxlength="100"
         autocomplete="off"
       />
-      <p class="hint">Only printed on the invoice when filled in.</p>
     </div>
     <div class="field">
       <label for="phone">Phone</label>
@@ -210,22 +235,24 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
     <h2>Price</h2>
     {/* Only changes the two amounts below, so it needs JavaScript */}
     <div class="member-rate" data-member-rate hidden>
-      <label class="checkbox">
-        <input
-          type="checkbox"
-          data-member-checkbox
-          data-member-rental={MEMBER_RENTAL_PRICE}
-          data-rental={RENTAL_PRICE}
-          data-deposit={DAMAGE_DEPOSIT}
-          checked={usesMemberRate}
-        />
-        Member rate: R{MEMBER_RENTAL_PRICE.toLocaleString("en-US")}
-      </label>
-      <p class="hint">
-        {booking.isMember
-          ? "They said on the booking form that they're a member. Check that they are before using the member rate."
-          : "They said on the booking form that they're not a member."}
-      </p>
+      <Help about="Member rate">
+        <label class="checkbox">
+          <input
+            type="checkbox"
+            data-member-checkbox
+            data-member-rental={MEMBER_RENTAL_PRICE}
+            data-rental={RENTAL_PRICE}
+            data-deposit={DAMAGE_DEPOSIT}
+            checked={usesMemberRate}
+          />
+          Member rate: R{MEMBER_RENTAL_PRICE.toLocaleString("en-US")}
+        </label>
+        <Fragment slot="help">
+          {booking.isMember
+            ? "They said on the booking form that they're a member. Check that they are before using the member rate."
+            : "They said on the booking form that they're not a member."}
+        </Fragment>
+      </Help>
     </div>
     <div class="field">
       <label for="rentalDescription">Rental</label>
@@ -256,7 +283,12 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
       />
     </div>
     <div class="field">
-      <label for="depositAmount">Damage deposit (R)</label>
+      <Help about="Damage deposit">
+        <label for="depositAmount">Damage deposit (R)</label>
+        <Fragment slot="help">
+          Set it to 0 to leave the deposit off the invoice.
+        </Fragment>
+      </Help>
       <input
         id="depositAmount"
         name="depositAmount"
@@ -268,12 +300,14 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         autocomplete="off"
         data-amount
       />
-      <p class="hint">Set it to 0 to leave the deposit off the invoice.</p>
     </div>
   </section>
 
   <section class="panel">
-    <h2>Extra lines</h2>
+    <Help about="Extra lines">
+      <h2>Extra lines</h2>
+      <Fragment slot="help">Leave a line empty to skip it.</Fragment>
+    </Help>
     <div class="extra-lines" data-extra-lines>
       {[...extras, { description: "", amount: "" }].map((line) => (
         <div class="extra-line" data-extra-line>
@@ -323,13 +357,18 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
     <button class="button" type="button" data-add-line hidden>
       Add a line
     </button>
-    <p class="hint">Leave a line empty to skip it.</p>
   </section>
 
   <section class="panel">
     <h2>Signature</h2>
     <div class="field">
-      <label for="signerTitle">Your title</label>
+      <Help about="Your title">
+        <label for="signerTitle">Your title</label>
+        <Fragment slot="help">
+          The invoice is signed in your name, {Astro.locals.user.name}, with
+          this title under it.
+        </Fragment>
+      </Help>
       <input
         id="signerTitle"
         name="signerTitle"
@@ -339,10 +378,6 @@ const AMOUNT_PATTERN = "\\s*[Rr]?[\\d\\s]*([.,]\\d{1,2})?\\s*";
         maxlength="100"
         autocomplete="organization-title"
       />
-      <p class="hint">
-        The invoice is signed in your name, {Astro.locals.user.name}, with this
-        title under it.
-      </p>
     </div>
   </section>
 

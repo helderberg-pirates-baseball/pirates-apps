@@ -44,7 +44,6 @@ const values = saveError
   <BackBar href="/invoices" label="Invoices" />
 
   <h1>New invoice</h1>
-  <p class="lede">For club business that isn't a booking.</p>
 
   {saveError && (
     <Alert tone="danger" title="Not saved">
@@ -61,12 +60,8 @@ const values = saveError
 
 <style>
   h1 {
-    margin: 0;
+    margin: 0 0 1rem;
     font-size: 1.625rem;
-  }
-  .lede {
-    margin: 0.25rem 0 1rem;
-    color: var(--color-muted);
   }
   :global(.alert) {
     margin-bottom: 1rem;
