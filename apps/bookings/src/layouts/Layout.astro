@@ -163,3 +163,53 @@ const { title } = Astro.props;
   // in its loading state
   window.addEventListener("pageshow", stopLoading);
 </script>
+
+<script>
+  // A one-line text that wraps as it's typed (textarea[data-grow]), so a long
+  // description is easy to read and edit on a phone. It stays one line of
+  // text: Enter does nothing and pasted line breaks become spaces. Browsers
+  // without CSS field-sizing grow it here.
+  const growsItself = CSS.supports("field-sizing", "content");
+
+  function grow(box: HTMLTextAreaElement) {
+    if (growsItself) return;
+    box.style.height = "";
+    box.style.height = `${box.scrollHeight + 2}px`;
+  }
+
+  function isGrowBox(
+    target: EventTarget | null
+  ): target is HTMLTextAreaElement {
+    return (
+      target instanceof HTMLTextAreaElement && target.hasAttribute("data-grow")
+    );
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && isGrowBox(event.target)) {
+      event.preventDefault();
+    }
+  });
+
+  document.addEventListener("input", (event) => {
+    const box = event.target;
+    if (!isGrowBox(box)) return;
+    if (/[\r\n]/.test(box.value)) {
+      const end = box.selectionEnd;
+      box.value = box.value.replace(/\s*[\r\n]+\s*/g, " ");
+      box.setSelectionRange(end, end);
+    }
+    grow(box);
+  });
+
+  const growAll = () => {
+    for (const box of document.querySelectorAll<HTMLTextAreaElement>(
+      "textarea[data-grow]"
+    )) {
+      grow(box);
+    }
+  };
+  growAll();
+  // Widths change when the phone turns
+  window.addEventListener("resize", growAll);
+</script>

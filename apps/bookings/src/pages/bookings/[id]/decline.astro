@@ -83,10 +83,11 @@ const { outOfLineRows } = data.tracking;
       </label>
       <div class="field other-reason">
         <label for="otherReason">Finish the sentence</label>
-        <input
+        <textarea
           id="otherReason"
           name="otherReason"
-          type="text"
+          rows="1"
+          data-grow
           maxlength="300"
           autocomplete="off"
           placeholder="the field is being resurfaced that week"
